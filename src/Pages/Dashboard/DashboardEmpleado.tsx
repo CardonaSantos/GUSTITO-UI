@@ -8,7 +8,7 @@ import {
 import {
   ShoppingCart,
   History,
-  Package,
+  // Package,
   DollarSign,
   Trash2,
   Users,
@@ -29,12 +29,7 @@ export default function DashboardEmpleado() {
       icon: History,
       route: "/historial/ventas",
     },
-    {
-      title: "Inventario",
-      description: "Gestionar productos en stock",
-      icon: Package,
-      route: "/inventario",
-    },
+
     {
       title: "Historial de Cambios de Precio",
       description: "Ver cambios en precios",

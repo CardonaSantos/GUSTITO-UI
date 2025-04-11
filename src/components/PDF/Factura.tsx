@@ -7,7 +7,7 @@ import {
   Document,
   StyleSheet,
 } from "@react-pdf/renderer";
-import logo from "../../assets/LOGONOVA.jpg";
+import logo from "../../assets/sandy2.png";
 import { VentaHistorialPDF } from "@/Types/PDF/VentaHistorialPDF";
 import dayjs from "dayjs";
 import "dayjs/locale/es"; // Importa el idioma español
@@ -47,7 +47,7 @@ const Factura: React.FC<VentaProps> = ({ venta }) => {
 
     titleContainer: { flexDirection: "row", marginTop: 24 },
 
-    logo: { width: 110 },
+    logo: { width: 120, height: 60 },
 
     reportTitle: { fontSize: 16, textAlign: "center" },
 
@@ -117,16 +117,22 @@ const Factura: React.FC<VentaProps> = ({ venta }) => {
     <View style={styles.titleContainer}>
       <View style={styles.spaceBetween}>
         <View>
-          <Text style={styles.invoice}>Nova Sistemas S.A.</Text>
+          <Text style={styles.invoice}>Pastelería Sandy</Text>
           <Text style={styles.invoiceNumber}>
-            Factura número: #{venta?.id ? venta.id : "No disponible"}
+            Factura No. {venta?.id ? venta.id : "No disponible"}
           </Text>
         </View>
         <View>
           <Text style={styles.addressTitle}>
             Sucursal:{" "}
+            {venta?.sucursal?.nombre ?? venta?.sucursal.nombre ?? null}
+          </Text>
+
+          <Text style={styles.addressTitle}>
+            Direccion:{" "}
             {venta?.sucursal?.direccion ?? venta?.sucursal.direccion ?? null}
           </Text>
+
           <Text style={styles.addressTitle}>
             Teléfono:{" "}
             {venta?.sucursal.telefono ?? venta?.sucursal.telefono ?? null}

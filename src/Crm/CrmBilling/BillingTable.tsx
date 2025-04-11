@@ -34,7 +34,6 @@ import { FacturacionZona } from "../CrmFacturacion/FacturacionZonaTypes";
 import ReactSelectComponent from "react-select";
 import DatePicker from "react-datepicker";
 import { es } from "date-fns/locale";
-import { Label } from "@/components/ui/label";
 
 dayjs.extend(utc);
 dayjs.extend(localizedFormat);
@@ -50,7 +49,6 @@ type Factura = {
   metodo: string;
   estado: EstadoFactura;
   cliente: string;
-  clienteObj: clienteOBJECT;
   clienteId: number;
   direccionIp: string;
   cantidad: number;
@@ -60,14 +58,6 @@ type Factura = {
   telefono: number;
   facturacionZonaId?: number;
 };
-
-interface clienteOBJECT {
-  nombre: string;
-  municipio: number;
-  departamento: number;
-  sector: number;
-  sectorId: number;
-}
 
 enum EstadoFactura {
   PENDIENTE = "PENDIENTE",
@@ -91,50 +81,18 @@ const columns: ColumnDef<Factura>[] = [
   { accessorKey: "cantidad", header: "Cantidad" },
   { accessorKey: "fechaCreado", header: "Fecha Creado" },
   { accessorKey: "fechaPago", header: "Fecha de Pago" },
-
-  { accessorKey: "telefono", header: "Tel." },
-
   { accessorKey: "estado", header: "Estado" },
 ];
 const VITE_CRM_API_URL = import.meta.env.VITE_CRM_API_URL;
-
-interface Departamentos {
-  id: number;
-  nombre: string;
-}
-
-interface Municipios {
-  id: number;
-  nombre: string;
+interface OptionSelected {
+  value: string;
+  label: string;
 }
 
 export default function BilingTable() {
   const [filter, setFilter] = useState("");
   const [facturas, setFactuas] = useState<Factura[]>([]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 }); // 🔥 FIX: Agregamos pageIndex
-
-  const [departamentos, setDepartamentos] = useState<Departamentos[]>([]);
-  const [municipios, setMunicipios] = useState<Municipios[]>([]);
-
-  const [depaSelected, setDepaSelected] = useState<string | null>("8");
-  const [muniSelected, setMuniSelected] = useState<string | null>(null);
-
-  const [sectores, setSectores] = useState<Sector[]>([]);
-  const [sectorSelected, setSectorSelected] = useState<string | null>(null);
-
-  interface Sector {
-    id: number;
-    nombre: string;
-    clientesCount: number;
-  }
-
-  const handleSelectSector = (selectedOption: OptionSelected | null) => {
-    setSectorSelected(selectedOption ? selectedOption.value : null);
-  };
-
-  console.log("el departamento selecionado es: ", depaSelected);
-  console.log("el muniSelected selecionado es: ", muniSelected);
-  console.log("las facturas son : ", facturas);
 
   const [facutracionData, setFacturacionData] = useState<FacturacionData>({
     cobrados: null,
@@ -189,20 +147,6 @@ export default function BilingTable() {
     }
   };
 
-  const getSectores = async () => {
-    try {
-      const response = await axios.get(
-        `${VITE_CRM_API_URL}/sector/sectores-to-select`
-      );
-
-      if (response.status === 200) {
-        setSectores(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
   const getFacturacionZona = async () => {
     try {
       const response = await axios.get(
@@ -218,81 +162,10 @@ export default function BilingTable() {
     }
   };
 
-  const getDepartamentos = async () => {
-    try {
-      const response = await axios.get(
-        `${VITE_CRM_API_URL}/location/get-all-departamentos`
-      );
-
-      if (response.status === 200) {
-        setDepartamentos(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const getMunicipios = async () => {
-    try {
-      const response = await axios.get(
-        `${VITE_CRM_API_URL}/location/get-municipio/${Number(depaSelected)}`
-      );
-
-      if (response.status === 200) {
-        setMunicipios(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const handleSelectDepartamento = (selectedOption: OptionSelected | null) => {
-    setDepaSelected(selectedOption ? selectedOption.value : null);
-  };
-
-  // Manejar el cambio en el select de municipio
-  const handleSelectMunicipio = (selectedOption: OptionSelected | null) => {
-    setMuniSelected(selectedOption ? selectedOption.value : null);
-  };
-
-  interface OptionSelected {
-    value: string; // Cambiar 'number' a 'string'
-    label: string;
-  }
-
-  // Cambiar 'optionsDepartamentos' para mapear los departamentos a 'string' para 'value'
-  const optionsDepartamentos: OptionSelected[] = departamentos.map((depa) => ({
-    value: depa.id.toString(), // Asegúrate de convertir el 'id' a 'string'
-    label: depa.nombre,
-  }));
-
-  const optionsMunis: OptionSelected[] = municipios.map((muni) => ({
-    value: muni.id.toString(),
-    label: muni.nombre,
-  }));
-
-  const optionsSectores: OptionSelected[] = sectores.map((sector) => ({
-    value: sector.id.toString(),
-    label: `${sector.nombre}  Clientes: (${sector.clientesCount})`,
-  }));
-
   useEffect(() => {
     getFacturas();
     getFacturacionZona();
-    // getMunicipios();
-    getDepartamentos();
-    getSectores();
   }, []);
-
-  // Obtener municipios cuando depaSelected cambia
-  useEffect(() => {
-    if (depaSelected) {
-      getMunicipios();
-    } else {
-      setMunicipios([]);
-      setMuniSelected(null);
-    }
-  }, [depaSelected]);
 
   const opcionesEstadoFactura = [
     "TODOS",
@@ -327,60 +200,25 @@ export default function BilingTable() {
         ? factura?.facturacionZonaId === Number(zonasFacturacionSelected)
         : true;
 
-      const matchesMunicipio = muniSelected
-        ? factura?.clienteObj.municipio === Number(muniSelected)
-        : true;
-
-      const matchesDepartamento = depaSelected
-        ? factura?.clienteObj.departamento === Number(depaSelected)
-        : true;
-
       const matchesEstado =
         estadoFactura === "TODOS" || estadoFactura === ""
           ? true
           : factura?.estado === estadoFactura;
 
-      const matchesSector = sectorSelected
-        ? factura.clienteObj.sectorId === Number(sectorSelected)
-        : true;
-
-      // filtro de fechas
+      // Nuevo filtro de fechas
       const matchesDate = () => {
         if (!dateRange.startDate && !dateRange.endDate) return true;
 
-        const ticketDate = new Date(factura.fechaPago);
+        const invoiceDate = new Date(factura.fechaPago); // Asegúrate que factura.fecha sea un Date válido
+        const start = dateRange.startDate ?? new Date(0);
+        const end = dateRange.endDate ?? new Date();
 
-        const start = dateRange.startDate
-          ? new Date(dateRange.startDate)
-          : new Date(0);
-        start.setHours(0, 0, 0, 0);
-
-        const end = dateRange.endDate
-          ? new Date(dateRange.endDate)
-          : new Date();
-        end.setHours(23, 59, 59, 999);
-
-        return ticketDate >= start && ticketDate <= end;
+        return invoiceDate >= start && invoiceDate <= end;
       };
 
-      return (
-        matchesZona &&
-        matchesEstado &&
-        matchesDepartamento &&
-        matchesMunicipio &&
-        matchesSector &&
-        matchesDate()
-      );
+      return matchesZona && matchesEstado && matchesDate();
     });
-  }, [
-    facturas,
-    zonasFacturacionSelected,
-    estadoFactura,
-    dateRange,
-    depaSelected,
-    muniSelected,
-    sectorSelected,
-  ]); // Añadir dateRange como dependencia
+  }, [facturas, zonasFacturacionSelected, estadoFactura, dateRange]); // Añadir dateRange como dependencia
   // **Configuración de la tabla**
   const table = useReactTable({
     data: filteredFacturas,
@@ -447,221 +285,130 @@ export default function BilingTable() {
         />
 
         {/* **Selector de Cantidad de Filas** */}
-        <div>
-          {/* **Filtros de Facturación** */}
-          <div className="space-y-4 mb-4">
-            {/* Resumen de facturación */}
-            <div className="flex flex-wrap items-center gap-4 p-2 bg-muted/20 rounded-lg">
-              <div className="flex items-center">
-                <File className="h-5 w-5 mr-2 dark:text-white" />
-                <span className="text-sm font-semibold">
-                  Facturados: {facutracionData.facturados}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <CreditCard className="h-5 w-5 mr-2 dark:text-white" />
-                <span className="text-sm font-semibold">
-                  Cobrados: {facutracionData.cobrados}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <FileCheck className="h-5 w-5 mr-2 dark:text-white" />
-                <span className="text-sm font-semibold">
-                  Por Cobrar: {facutracionData.porCobrar}
-                </span>
+        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+          {/* Left icons */}
+          <div className="flex flex-wrap items-center font-semibold gap-x-4 gap-y-2">
+            <div className="flex items-center">
+              <File className="h-5 w-5 mr-2 dark:text-white" />
+              <span>Facturados: {facutracionData.facturados}</span>
+            </div>
+            <div className="flex items-center">
+              <CreditCard className="h-5 w-5 mr-2 dark:text-white" />
+              <span>Cobrados: {facutracionData.cobrados}</span>
+            </div>
+            <div className="flex items-center">
+              <FileCheck className="h-5 w-5 mr-2 dark:text-white" />
+              <span>Por Cobrar: {facutracionData.porCobrar}</span>
+            </div>
+          </div>
+
+          {/* Right selects */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Left column - Date filters */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium">Rango de fechas</label>
+              <div className="flex flex-wrap gap-2">
+                <DatePicker
+                  locale={es}
+                  selected={dateRange.startDate || null}
+                  onChange={(date: Date | null) =>
+                    setDateRange((prev) => ({
+                      ...prev,
+                      startDate: date || undefined,
+                    }))
+                  }
+                  selectsStart
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  placeholderText="Fecha inicial"
+                  className="h-9 w-full min-w-[140px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  dateFormat="dd/MM/yyyy"
+                  isClearable
+                />
+
+                <DatePicker
+                  selected={dateRange.endDate || null}
+                  onChange={(date: Date | null) =>
+                    setDateRange((prev) => ({
+                      ...prev,
+                      endDate: date || undefined,
+                    }))
+                  }
+                  selectsEnd
+                  startDate={dateRange.startDate}
+                  endDate={dateRange.endDate}
+                  minDate={dateRange.startDate}
+                  placeholderText="Fecha final"
+                  className="h-9 w-full min-w-[140px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  dateFormat="dd/MM/yyyy"
+                  isClearable
+                />
               </div>
             </div>
 
-            {/* Filtros */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {/* Rango de fechas */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium">
-                  Rango de fechas pago
-                </label>
-                <div className="flex gap-2">
-                  <DatePicker
-                    locale={es}
-                    selected={dateRange.startDate || null}
-                    onChange={(date: Date | null) =>
-                      setDateRange((prev) => ({
-                        ...prev,
-                        startDate: date || undefined,
-                      }))
+            {/* Select de zonas (React Select) */}
+            <ReactSelectComponent
+              isClearable
+              placeholder="Ordenar por facturación zona"
+              className="w-72 text-black text-sm"
+              options={optionsZonasFacturacion}
+              onChange={handleSelectZonaFacturacion}
+              value={
+                zonasFacturacionSelected
+                  ? {
+                      value: zonasFacturacionSelected,
+                      label:
+                        zonasFacturacion.find(
+                          (s) => s.id.toString() === zonasFacturacionSelected
+                        )?.nombre || "",
                     }
-                    selectsStart
-                    startDate={dateRange.startDate}
-                    endDate={dateRange.endDate}
-                    placeholderText="Fecha inicial"
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    dateFormat="dd/MM/yyyy"
-                    isClearable
-                  />
+                  : null
+              }
+            />
+            {/* Select de ShadCN (Nuevo filtro) */}
+            <Select onValueChange={handleSelectEstadoFactura}>
+              <SelectTrigger className="w-48 text-xs">
+                <SelectValue placeholder="Estado Factura" />
+              </SelectTrigger>
+              <SelectContent>
+                {opcionesEstadoFactura.map((state) => (
+                  <SelectGroup>
+                    <SelectItem value={state}>{state}</SelectItem>
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
 
-                  <DatePicker
-                    selected={dateRange.endDate || null}
-                    onChange={(date: Date | null) =>
-                      setDateRange((prev) => ({
-                        ...prev,
-                        endDate: date || undefined,
-                      }))
-                    }
-                    selectsEnd
-                    startDate={dateRange.startDate}
-                    endDate={dateRange.endDate}
-                    minDate={dateRange.startDate}
-                    placeholderText="Fecha final"
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    dateFormat="dd/MM/yyyy"
-                    isClearable
-                  />
-                </div>
-              </div>
-
-              {/* Departamento */}
-              <div className="space-y-1">
-                <Label htmlFor="departamentoId-all">Departamento</Label>
-                <ReactSelectComponent
-                  placeholder="Seleccione un departamento"
-                  isClearable
-                  options={optionsDepartamentos}
-                  value={
-                    depaSelected
-                      ? {
-                          value: depaSelected,
-                          label:
-                            departamentos.find(
-                              (depa) => depa.id.toString() === depaSelected
-                            )?.nombre || "",
-                        }
-                      : null
-                  }
-                  onChange={handleSelectDepartamento}
-                  className="text-xs text-black"
-                />
-              </div>
-
-              {/* Municipio */}
-              <div className="space-y-1">
-                <Label htmlFor="municipioId-all">Municipio</Label>
-                <ReactSelectComponent
-                  placeholder="Seleccione un municipio"
-                  isClearable
-                  options={optionsMunis}
-                  onChange={handleSelectMunicipio}
-                  value={
-                    muniSelected
-                      ? {
-                          value: muniSelected,
-                          label:
-                            municipios.find(
-                              (muni) => muni.id.toString() == muniSelected
-                            )?.nombre || "",
-                        }
-                      : null
-                  }
-                  className="text-xs text-black"
-                />
-              </div>
-
-              {/* Sector */}
-              <div className="space-y-1">
-                <Label htmlFor="sectorid-all">Sector</Label>
-                <ReactSelectComponent
-                  placeholder="Seleccione un sector"
-                  isClearable
-                  options={optionsSectores}
-                  onChange={handleSelectSector}
-                  value={
-                    sectorSelected
-                      ? {
-                          value: sectorSelected,
-                          label:
-                            sectores.find(
-                              (muni) => muni.id.toString() == sectorSelected
-                            )?.nombre || "",
-                        }
-                      : null
-                  }
-                  className="text-xs text-black"
-                />
-              </div>
-
-              {/* Zona de Facturación */}
-              <div className="space-y-1">
-                <Label>Zona de Facturación</Label>
-                <ReactSelectComponent
-                  isClearable
-                  placeholder="Ordenar por facturación zona"
-                  className="text-xs text-black"
-                  options={optionsZonasFacturacion}
-                  onChange={handleSelectZonaFacturacion}
-                  value={
-                    zonasFacturacionSelected
-                      ? {
-                          value: zonasFacturacionSelected,
-                          label:
-                            zonasFacturacion.find(
-                              (s) =>
-                                s.id.toString() === zonasFacturacionSelected
-                            )?.nombre || "",
-                        }
-                      : null
-                  }
-                />
-              </div>
-
-              {/* Estado Factura */}
-              <div className="space-y-1">
-                <Label>Estado Factura</Label>
-                <Select onValueChange={handleSelectEstadoFactura}>
-                  <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Estado Factura" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {opcionesEstadoFactura.map((state) => (
-                      <SelectGroup key={state}>
-                        <SelectItem value={state}>{state}</SelectItem>
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Items por página */}
-              <div className="space-y-1">
-                <Label>Items por página</Label>
-                <Select
-                  onValueChange={(value) =>
-                    setPagination({ ...pagination, pageSize: Number(value) })
-                  }
-                  defaultValue={String(pagination.pageSize)}
-                >
-                  <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Items por página" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Select de tamaño de página */}
+            <Select
+              onValueChange={(value) =>
+                setPagination({ ...pagination, pageSize: Number(value) })
+              }
+              defaultValue={String(pagination.pageSize)}
+            >
+              <SelectTrigger className="w-32 text-xs">
+                <SelectValue placeholder="Items por página" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
         {/* **Tabla** */}
-        <div className="overflow-x-auto rounded-md border border-gray-200 shadow-sm dark:border-gray-800 dark:bg-transparent dark:shadow-gray-900/30">
-          <table className="w-full border-collapse text-xs">
-            <thead className="bg-gray-50 dark:bg-transparent dark:border-b dark:border-gray-800">
+        <div className="overflow-x-auto">
+          <table className="w-full border border-gray-300 text-xs">
+            <thead className="bg-gray-100 dark:bg-gray-800">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300"
+                      className="px-2 py-1 border font-semibold"
                     >
                       {flexRender(
                         header.column.columnDef.header,
@@ -672,49 +419,41 @@ export default function BilingTable() {
                 </tr>
               ))}
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+            <tbody>
               {table.getRowModel().rows.map((row) => (
                 <motion.tr
                   key={row.id}
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                   transition={{ type: "spring", stiffness: 120, damping: 22 }}
-                  className="bg-white hover:bg-gray-50 dark:bg-transparent dark:hover:bg-gray-900/20 dark:text-gray-100"
+                  className="hover:bg-gray-200 dark:hover:bg-gray-700 border-b border-gray-300"
                 >
-                  <td className="px-3 py-2 text-center font-medium">
-                    {row.original.id}
-                  </td>
-
+                  <td className="px-2 py-1 text-center">{row.original.id}</td>
+                  {/* <td className="px-2 py-1 truncate max-w-[120px] whitespace-nowrap">
+                    {row.original.metodo}
+                  </td> */}
                   <Link
                     to={`/crm/cliente/${row.original.clienteId}`}
                     className="contents"
                   >
-                    <td className="px-3 py-2 truncate max-w-[100px] hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline">
+                    <td className="px-2 py-1 truncate max-w-[100px] hover:underline">
                       {row.original.cliente}
                     </td>
                   </Link>
-
-                  <td className="px-3 py-2 truncate max-w-[150px] whitespace-nowrap text-gray-600 dark:text-gray-400">
+                  <td className="px-2 py-1 truncate max-w-[150px] whitespace-nowrap">
                     {row.original.cantidad}
                   </td>
-
-                  <td className="px-3 py-2 truncate max-w-[120px] whitespace-nowrap text-gray-600 dark:text-gray-400">
+                  <td className="px-2 py-1 truncate max-w-[120px] whitespace-nowrap">
                     {formatearFecha(row.original.fechaCreado)}
                   </td>
 
                   <Link to={`/crm/facturacion/pago-factura/${row.original.id}`}>
-                    <td className="px-3 py-2 truncate max-w-[120px] whitespace-nowrap hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline">
+                    <td className="px-2 py-1 truncate max-w-[120px] whitespace-nowrap hover:underline">
                       {formatearFecha(row.original.fechaPago)}
                     </td>
                   </Link>
 
-                  <td className="px-3 py-2 truncate max-w-[100px] whitespace-nowrap text-gray-600 dark:text-gray-400">
-                    {row.original.telefono
-                      ? row.original.telefono
-                      : "Sin telefono"}
-                  </td>
-
-                  <td className="px-3 py-2 truncate max-w-[100px] whitespace-nowrap text-gray-600 dark:text-gray-400">
+                  <td className="px-2 py-1 truncate max-w-[100px] whitespace-nowrap">
                     {row.original.por ? row.original.estado : "Sin cobrar"}
                   </td>
                 </motion.tr>
@@ -724,27 +463,25 @@ export default function BilingTable() {
         </div>
 
         {/* **Controles de Paginación** */}
-        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 text-xs dark:border-gray-800 dark:bg-transparent dark:text-gray-300 mt-0 rounded-b-md">
+        <div className="flex justify-between items-center mt-3 text-xs">
           <Button
             variant="outline"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="h-8 rounded-md border-gray-300 px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800/30"
+            className="px-2 py-1"
           >
             Anterior
           </Button>
 
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Página{" "}
-            <span className="font-medium">{pagination.pageIndex + 1}</span> de{" "}
-            <span className="font-medium">{table.getPageCount()}</span>
+          <span>
+            Página {pagination.pageIndex + 1} de {table.getPageCount()}
           </span>
 
           <Button
             variant="outline"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="h-8 rounded-md border-gray-300 px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800/30"
+            className="px-2 py-1"
           >
             Siguiente
           </Button>

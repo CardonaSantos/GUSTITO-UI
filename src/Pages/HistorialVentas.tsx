@@ -3,9 +3,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  FileSpreadsheet,
+  // FileSpreadsheet,
   FileText,
-  Ticket,
+  // Ticket,
   Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -82,6 +82,7 @@ interface VentaToDelete {
 
 export default function HistorialVentas() {
   const sucursalId = useStore((state) => state.sucursalId) ?? 0;
+  const userRol = useStore((state) => state.userRol) ?? "VENDEDOR";
   const [ventaEliminar, setVentaEliminar] = useState<VentaToDelete>({
     usuarioId: 0,
     motivo: "",
@@ -419,7 +420,7 @@ export default function HistorialVentas() {
                   <TableHead>Total</TableHead>
                   <TableHead>Acciones</TableHead>
                   <TableHead>Impresiones</TableHead>
-                  <TableHead>Ticket</TableHead>
+                  {/* <TableHead>Ticket</TableHead> */}
 
                   <TableHead>Eliminar</TableHead>
                 </TableRow>
@@ -486,7 +487,7 @@ export default function HistorialVentas() {
                           </Tooltip>
                         </TooltipProvider>
 
-                        <TooltipProvider>
+                        {/* <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger>
                               <Link
@@ -505,13 +506,13 @@ export default function HistorialVentas() {
                               <p>Imprimir Garantía</p>
                             </TooltipContent>
                           </Tooltip>
-                        </TooltipProvider>
+                        </TooltipProvider> */}
 
                         {/* GENERAR EL TICKET */}
                       </div>
                     </TableCell>
 
-                    <TableCell className="flex justify-center items-center">
+                    {/* <TableCell className="flex justify-center items-center">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
@@ -530,7 +531,7 @@ export default function HistorialVentas() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                    </TableCell>
+                    </TableCell> */}
 
                     {/* GENERAR EL TICKER */}
 
@@ -540,9 +541,11 @@ export default function HistorialVentas() {
                         <Tooltip>
                           <TooltipTrigger>
                             <Button
-                              disabled={["CREDITO", "OTRO"].includes(
-                                venta?.metodoPago?.metodoPago ?? ""
-                              )}
+                              disabled={
+                                ["CREDITO", "OTRO"].includes(
+                                  venta?.metodoPago?.metodoPago ?? ""
+                                ) || userRol !== "ADMIN"
+                              }
                               onClick={() => {
                                 setVentaEliminar((datosPrevios) => ({
                                   ...datosPrevios,

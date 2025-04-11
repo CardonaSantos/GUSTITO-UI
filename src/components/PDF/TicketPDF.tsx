@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
-import logo from "../../assets/LOGONOVA.jpg";
+import logo from "../../assets/logoNvPNG.png";
 import { VentaHistorialPDF } from "@/Types/PDF/VentaHistorialPDF";
 import dayjs from "dayjs";
 import "dayjs/locale/es";

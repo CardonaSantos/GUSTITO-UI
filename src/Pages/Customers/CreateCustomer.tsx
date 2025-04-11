@@ -347,16 +347,6 @@ export default function CreateCustomer() {
                     onChange={handleChange}
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="direccion">IP (opcional)</Label>
-                  <Input
-                    id="iPInternet"
-                    name="iPInternet"
-                    value={formData.iPInternet}
-                    onChange={handleChange}
-                  />
-                </div>
               </div>
 
               <Button type="submit" className="w-full">
@@ -405,7 +395,7 @@ export default function CreateCustomer() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Telefono</TableHead>
                   <TableHead className="text-right">DPI</TableHead>
-                  <TableHead className="text-right">IP</TableHead>
+                  {/* <TableHead className="text-right">IP</TableHead> */}
                   <TableHead className="text-right">Dirección</TableHead>
                   <TableHead className="text-right">Compras hechas</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -428,9 +418,9 @@ export default function CreateCustomer() {
                         {client.dpi || "DPI no disponible"}
                       </TableCell>
 
-                      <TableCell className="text-right">
+                      {/* <TableCell className="text-right">
                         {client.iPInternet || "N/A"}
-                      </TableCell>
+                      </TableCell> */}
 
                       <TableCell className="text-right">
                         {client.direccion || "Dirección no disponible"}
@@ -503,7 +493,7 @@ export default function CreateCustomer() {
                         className="border p-2 rounded w-full bg-transparent"
                       />
                     </label>
-
+                    {/* 
                     <label>
                       IP Internet:
                       <input
@@ -517,7 +507,7 @@ export default function CreateCustomer() {
                         }
                         className="border p-2 rounded w-full bg-transparent"
                       />
-                    </label>
+                    </label> */}
 
                     <label>
                       DPI:

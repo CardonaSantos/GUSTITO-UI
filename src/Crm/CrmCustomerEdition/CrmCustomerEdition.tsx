@@ -133,7 +133,6 @@ interface CustomerData {
   fechaInstalacion: string;
   departamento: Departamentos;
   municipio: Municipios;
-  sector: Sector;
   servicios: Servicios[];
   servicioWifi: ServiciosInternet;
   zonaFacturacion: FacturacionZona;
@@ -143,10 +142,6 @@ interface CustomerData {
     archivoContrato: string;
     observaciones: string;
   };
-}
-interface Sector {
-  id: number;
-  nombre: string;
 }
 
 function EditCustomers() {
@@ -179,8 +174,6 @@ function EditCustomers() {
   const [zonasFacturacionSelected, setZonasFacturacionSelected] = useState<
     string | null
   >(null);
-  const [sectorSelected, setSectorSelected] = useState<string | null>(null);
-  const [sectores, setSectores] = useState<Sector[]>([]);
 
   // Estados para los campos del formulario
   const [formData, setFormData] = useState<FormData>({
@@ -293,10 +286,6 @@ function EditCustomers() {
           setMuniSelected(customerData.municipio.id.toString());
         }
 
-        if (customerData.sector?.id) {
-          setSectorSelected(customerData.sector.id.toString());
-        }
-
         if (customerData.servicios && customerData.servicios.length > 0) {
           setServiceSelected(
             customerData.servicios.map((s) => s.id.toString())
@@ -322,20 +311,6 @@ function EditCustomers() {
     }
   };
   // Fetch customer data using mock service
-
-  const getSectores = async () => {
-    try {
-      const response = await axios.get(
-        `${VITE_CRM_API_URL}/sector/sectores-to-select`
-      );
-
-      if (response.status === 200) {
-        setSectores(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
 
   const getDepartamentos = async () => {
     try {
@@ -417,7 +392,6 @@ function EditCustomers() {
     getServiciosWifi();
     getFacturacionZona();
 
-    getSectores();
     // Fetch customer data if ID is available
     if (customerId) {
       fetchCustomerData();
@@ -468,11 +442,6 @@ function EditCustomers() {
     })
   );
 
-  const optionsSectores: OptionSelected[] = sectores.map((sector) => ({
-    value: sector.id.toString(),
-    label: sector.nombre,
-  }));
-
   // Manejar el cambio en el select de departamento
   const handleSelectDepartamento = (selectedOption: OptionSelected | null) => {
     setDepaSelected(selectedOption ? selectedOption.value : null);
@@ -495,10 +464,6 @@ function EditCustomers() {
   //manejar cambio en el select de mis servicios wifi
   const handleSelectServiceWifi = (selectedOption: OptionSelected | null) => {
     setServiceWifiSelected(selectedOption ? selectedOption.value : null);
-  };
-
-  const handleSelectSector = (selectedOption: OptionSelected | null) => {
-    setSectorSelected(selectedOption ? selectedOption.value : null);
   };
 
   const handleSelectZonaFacturacion = (
@@ -546,8 +511,6 @@ function EditCustomers() {
       fechaInstalacion: fechaInstalacion,
       municipioId: Number(muniSelected) || null,
       departamentoId: Number(depaSelected) || null,
-      sectorId: Number(sectorSelected) || null, // Convertir a número
-
       empresaId: 1,
       coordenadas:
         formData.coordenadas && formData.coordenadas !== ""
@@ -900,29 +863,6 @@ function EditCustomers() {
                         className="text-sm text-black"
                       />
                     </div>
-
-                    <div className="space-y-1">
-                      <Label htmlFor="municipioId-all">Sectores</Label>
-                      <ReactSelectComponent
-                        isClearable
-                        options={optionsSectores}
-                        onChange={handleSelectSector}
-                        value={
-                          sectorSelected
-                            ? {
-                                value: sectorSelected,
-                                label:
-                                  sectores.find(
-                                    (muni) =>
-                                      muni.id.toString() == sectorSelected
-                                  )?.nombre || "",
-                              }
-                            : null
-                        }
-                        className="text-xs text-black"
-                      />
-                    </div>
-
                     <div className="space-y-1">
                       <Label htmlFor="contactoReferenciaNombre-all">
                         Nombre Referencia

@@ -2,6 +2,7 @@ export interface ClienteDto {
   id: number;
   nombreCompleto: string;
   // nombreCompleto: string;
+
   telefono: string;
   dpi: string;
   direccion: string;
@@ -9,20 +10,10 @@ export interface ClienteDto {
   actualizadoEn: Date;
   departamento: string;
   municipio: string;
-  municipioId: number;
-  departamentoId: number;
   direccionIp: string;
   servicios: ServicioInternetDto[];
   facturacionZona: string;
   facturacionZonaId: number;
-  sector: Sector;
-  sectorId: number;
-}
-
-interface Sector {
-  id: number;
-  nombre: string;
-  clientesCount: number;
 }
 
 export interface ServicioInternetDto {

@@ -27,9 +27,6 @@ import {
   Wallet,
   Receipt,
   MoreHorizontal,
-  Waypoints,
-  UserCog,
-  LandPlot,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -55,10 +52,10 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 const VITE_CRM_API_URL = import.meta.env.VITE_CRM_API_URL;
-import axios, { AxiosResponse } from "axios";
+import axios from "axios";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ClienteDetailsDto, FacturaInternet } from "./CustomerDetails";
+import { ClienteDetailsDto } from "./CustomerDetails";
 import currency from "currency.js";
 
 import dayjs from "dayjs";
@@ -82,15 +79,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import FacturaGenerateDialog from "./Factura/FacturaGenerateDialog";
 import GenerateFacturas from "./Factura/GenerateFacturas";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 dayjs.extend(utc);
 dayjs.extend(localizedFormat);
@@ -113,10 +101,6 @@ export default function CustomerDetails() {
   const { id } = useParams();
   const [cliente, setCliente] = useState<ClienteDetailsDto>({
     id: 0,
-    sector: {
-      id: 1,
-      nombre: "",
-    },
     nombre: "",
     apellidos: "",
     telefono: "",
@@ -276,47 +260,6 @@ export default function CustomerDetails() {
   const [openGenerarFactura, setOpenGenerarFactura] = useState(false);
 
   const [openGenerateFacturas, setOpenGenerateFacturas] = useState(false);
-  //
-  const [openDeleteFactura, setOpenDeleteFactura] = useState(false);
-  const [facturaAction, setFacturaAction] = useState<FacturaInternet | null>(
-    null
-  );
-
-  const handleDeleteFactura = async () => {
-    if (!facturaAction) {
-      toast.warning("No hay factura seleccionada para eliminar");
-      return;
-    }
-
-    const { id, estado, fechaEmision, fechaVencimiento } = facturaAction;
-
-    try {
-      const response: AxiosResponse = await axios.delete(
-        `${VITE_CRM_API_URL}/facturacion/delete-one-factura`,
-        {
-          data: {
-            facturaId: id,
-            estadoFactura: estado,
-            fechaEmision,
-            fechaVencimiento,
-          },
-        }
-      );
-
-      if (response.status === 200 || response.status === 201) {
-        toast.success("Factura eliminada correctamente");
-        getClienteDetails();
-        setFacturaAction(null);
-        setOpenDeleteFactura(false);
-      } else {
-        toast.error("No se pudo eliminar la factura");
-      }
-    } catch (error: any) {
-      console.error("Error al eliminar factura:", error);
-      toast.error("Ocurrió un error al intentar eliminar la factura");
-    }
-  };
-  console.log("La factura a eliminar es: ", facturaAction);
 
   return (
     <div className="container mx-auto  py-6">
@@ -348,13 +291,6 @@ export default function CustomerDetails() {
               <Button variant={"outline"} size="sm" className="h-8">
                 <Ticket className="h-4 w-4 mr-1" />
                 Nuevo Ticket
-              </Button>
-            </Link>
-
-            <Link to={`/crm/cliente-edicion/${cliente.id}`}>
-              <Button variant={"outline"} size="sm" className="h-8">
-                <UserCog className="h-4 w-4 mr-1" />
-                Editar
               </Button>
             </Link>
           </div>
@@ -411,7 +347,7 @@ export default function CustomerDetails() {
               <Card className="border border-gray-300">
                 <CardHeader className="pb-1">
                   <CardTitle className="text-sm flex items-center">
-                    <User className="h-3.5 w-3.5 mr-2 text-primary dark:text-white" />
+                    <User className="h-3.5 w-3.5 mr-2 text-primary" />
                     Información Personal & Contacto de Referencia
                   </CardTitle>
                 </CardHeader>
@@ -480,7 +416,7 @@ export default function CustomerDetails() {
               <Card className="border border-gray-300">
                 <CardHeader className="pb-1">
                   <CardTitle className="text-sm flex items-center">
-                    <Building className="h-3.5 w-3.5 mr-2 text-primary dark:text-white" />
+                    <Building className="h-3.5 w-3.5 mr-2 text-primary" />
                     Empresa, Ubicación & Sistema
                   </CardTitle>
                 </CardHeader>
@@ -504,17 +440,6 @@ export default function CustomerDetails() {
                         {cliente.municipio?.nombre || "No especificado"}
                       </dd>
                     </div>
-
-                    <div className="grid grid-cols-3 items-center">
-                      <dt className="font-medium text-muted-foreground flex items-center">
-                        <LandPlot className="h-3 w-3 mr-1 text-muted-foreground" />
-                        Sector:
-                      </dt>
-                      <dd className="col-span-2 truncate">
-                        {cliente.sector?.nombre || "No especificado"}
-                      </dd>
-                    </div>
-
                     <div className="grid grid-cols-3 items-center">
                       <dt className="font-medium text-muted-foreground flex items-center">
                         <Map className="h-3 w-3 mr-1 text-muted-foreground" />
@@ -529,7 +454,7 @@ export default function CustomerDetails() {
                         <MessageSquare className="h-3 w-3 mr-1 text-muted-foreground" />
                         Observaciones:
                       </dt>
-                      <dd className="col-span-2 ">
+                      <dd className="col-span-2 truncate">
                         {cliente.observaciones ||
                           "No hay observaciones registradas."}
                       </dd>
@@ -710,11 +635,7 @@ export default function CustomerDetails() {
                   Ubicación del Cliente
                 </CardTitle>
                 <CardDescription>
-                  Dirección: {cliente.direccion || "Dirección no especificada"}
-                </CardDescription>
-
-                <CardDescription>
-                  Sector: {cliente.sector?.nombre || "Sector no especificada"}
+                  {cliente.direccion || "Dirección no especificada"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -893,13 +814,14 @@ export default function CustomerDetails() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                           {/* Primera sección */}
+
                           <DropdownMenuGroup>
                             <DropdownMenuItem
                               onClick={() => {
                                 setOpenGenerarFactura(true);
                               }}
                             >
-                              Generar factura individual
+                              Generar una factura de servicio
                             </DropdownMenuItem>
                           </DropdownMenuGroup>
 
@@ -910,8 +832,15 @@ export default function CustomerDetails() {
                             <DropdownMenuItem
                               onClick={() => setOpenGenerateFacturas(true)}
                             >
-                              Generar múltiples facturas
+                              Generar Varias facturas
                             </DropdownMenuItem>
+                          </DropdownMenuGroup>
+
+                          <DropdownMenuSeparator />
+
+                          {/* Tercera sección */}
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem>Otros</DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1013,10 +942,6 @@ export default function CustomerDetails() {
                             <TableHead className="w-[100px] font-medium">
                               Estado
                             </TableHead>
-
-                            <TableHead className="w-[100px] font-medium">
-                              Accion
-                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1058,33 +983,6 @@ export default function CustomerDetails() {
                                     >
                                       {factura.estado}
                                     </Badge>
-                                  </TableCell>
-
-                                  <TableCell className="">
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger>
-                                        <Button
-                                          variant="ghost"
-                                          className="h-6 w-6 p-0 hover:bg-muted/50 hover:text-primary transition-colors"
-                                          title="Acciones disponibles"
-                                        >
-                                          <Waypoints className="h-4 w-4 dark:text-white" />
-                                          <span className="sr-only">
-                                            Accion
-                                          </span>
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent>
-                                        <DropdownMenuItem
-                                          onClick={() => {
-                                            setOpenDeleteFactura(true);
-                                            setFacturaAction(factura);
-                                          }}
-                                        >
-                                          Eliminar
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
                                   </TableCell>
                                 </TableRow>
 
@@ -1241,46 +1139,6 @@ export default function CustomerDetails() {
         clienteId={cliente.id}
         getClienteDetails={getClienteDetails}
       />
-
-      <Dialog open={openDeleteFactura} onOpenChange={setOpenDeleteFactura}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-center">
-              Confirmar Eliminación
-            </DialogTitle>
-            <DialogDescription className="text-center">
-              ¿Está seguro que desea eliminar esta factura? Esta acción no se
-              puede deshacer.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Advertencia</AlertTitle>
-              <AlertDescription>
-                El saldo y estado del cliente se verán afectados en función de
-                su saldo actual y su relacion con sus facturas.
-              </AlertDescription>
-            </Alert>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setOpenDeleteFactura(false)}
-              // disabled={isLoading}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteFactura}
-              // disabled={isLoading}
-            >
-              Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

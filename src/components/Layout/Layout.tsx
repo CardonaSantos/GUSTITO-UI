@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { ModeToggle } from "../mode-toggle";
-import nv2 from "@/assets/LOGOPNG.png";
-import nv3 from "@/assets/LogoCrmPng.png";
+import sandyLogo from "@/assets/sandy2.png";
 
 import {
   DropdownMenu,
@@ -69,8 +68,6 @@ interface Notificacion {
 }
 
 export default function Layout2({ children }: LayoutProps) {
-  // const [tokenUser, setTokenUser] = useState<UserToken | null>(null);
-  // const [tokenUserCrm, setTokenUserCrm] = useState<UserCrmToken | null>(null);
   const setUserNombre = useStore((state) => state.setUserNombre);
   const setUserCorreo = useStore((state) => state.setUserCorreo);
   const setUserId = useStore((state) => state.setUserId);
@@ -99,8 +96,6 @@ export default function Layout2({ children }: LayoutProps) {
   const nombreCrm = useStoreCrm((state) => state.nombre);
   const correoCrm = useStoreCrm((state) => state.correo);
   const rol = useStoreCrm((state) => state.rol);
-  console.log("El rol de mi usuario actual es: ", rol);
-
   const empresaID = useStoreCrm((state) => state.empresaId);
   useEffect(() => {
     const storedToken = localStorage.getItem("authTokenPos");
@@ -244,9 +239,6 @@ export default function Layout2({ children }: LayoutProps) {
     }
   }, [socket]);
 
-  const classesCrmLogo = "h-14 w-14 md:h-16 md:w-16";
-  const classesNova = "h-16 w-16 md:h-10 md:w-16";
-
   return (
     <div className="flex min-h-screen">
       <SidebarProvider>
@@ -261,10 +253,9 @@ export default function Layout2({ children }: LayoutProps) {
               <div className="flex items-center space-x-2">
                 <Link to={isCrmLocation ? "/crm" : "/"}>
                   <img
-                    className={`${
-                      isCrmLocation ? classesCrmLogo : classesNova
-                    }`} // Mobile: 12x12, Medium+: 16x28
-                    src={isCrmLocation ? nv3 : nv2}
+                    className={`h-10 w-16 rounded-sm
+                    `}
+                    src={sandyLogo}
                     alt="Logo"
                   />
                 </Link>
@@ -277,17 +268,7 @@ export default function Layout2({ children }: LayoutProps) {
               {/* vitaFertil-universal-forma:pachon, normal */}
               {/* Sección derecha: Toggle de modo, notificaciones y menú de usuario */}
               <div className="flex items-center space-x-2">
-                <div className="">
-                  <Link to={"/crm"}>
-                    <Button
-                      className="underline font-semibold dark:text-white "
-                      size={"icon"}
-                      variant={"link"}
-                    >
-                      CRM
-                    </Button>
-                  </Link>
-                </div>
+                <div className=""></div>
 
                 <div className=" ">
                   <ModeToggle />

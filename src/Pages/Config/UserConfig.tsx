@@ -1,4 +1,13 @@
+"use client";
+
+import type React from "react";
+
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "sonner";
 import { useStore } from "@/components/Context/ContextSucursal";
+
+// UI Components
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,31 +27,59 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import axios from "axios";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+// Icons
 import {
   AtSign,
   Building,
-  ChartNoAxesColumn,
-  Ghost,
-  ToggleLeft,
-  UserIcon,
+  BarChartIcon as ChartBarIcon,
+  CheckCircle,
+  Edit,
+  Eye,
+  KeyRound,
+  Loader2,
+  LockIcon,
+  Mail,
+  Save,
+  ShieldAlert,
+  ShieldCheck,
+  Store,
+  User,
+  UserCog,
+  UserPlus,
+  Users,
+  XCircle,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-interface User {
+interface UserType {
   id: number;
   nombre: string;
   activo: boolean;
   correo: string;
   rol: string;
-  contrasena?: string; // Opcional
-  contrasenaConfirm?: string; // Opcional
+  contrasena?: string;
+  contrasenaConfirm?: string;
 }
 
 interface Sucursal {
@@ -60,49 +97,66 @@ interface UsuarioResponse {
   totalVentas: number;
 }
 
-function UserConfig() {
-  const userId = useStore((state) => state.userId);
-  const [user, setUser] = useState<User>({
-    activo: true,
-    correo: "",
+export default function UserConfig() {
+  const { userId } = useStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Current user state
+  const [user, setUser] = useState<UserType>({
     id: 0,
     nombre: "",
+    correo: "",
     rol: "",
+    activo: true,
     contrasena: "",
     contrasenaConfirm: "",
   });
 
-  const [userEdit, setUserEdit] = useState<User>({
+  // User being edited state
+  const [userEdit, setUserEdit] = useState<UserType>({
     id: 0,
-    activo: true,
-    correo: "",
     nombre: "",
+    correo: "",
     rol: "",
+    activo: true,
     contrasena: "",
     contrasenaConfirm: "",
   });
 
+  // All users state
   const [users, setUsers] = useState<UsuarioResponse[]>([]);
 
+  // UI state
+  const [confirmDialog, setConfirmDialog] = useState(false);
+  const [editDialog, setEditDialog] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Fetch current user data
   const getUser = async () => {
+    if (!userId) return;
+
+    setIsLoading(true);
     try {
       const response = await axios.get(`${API_URL}/user/fin-my-user/${userId}`);
       if (response.status === 200) {
-        const userData = response.data;
         setUser({
-          ...user,
-          ...userData,
-          contrasena: "", // Resetea valores no proporcionados
+          ...response.data,
+          contrasena: "",
           contrasenaConfirm: "",
         });
       }
     } catch (error) {
       console.error(error);
-      toast.error("Error al conseguir datos");
+      toast.error("Error al obtener datos del usuario");
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // Fetch all users
   const getUsers = async () => {
+    setIsLoading(true);
     try {
       const response = await axios.get(`${API_URL}/user/fin-all-users`);
       if (response.status === 200) {
@@ -110,96 +164,81 @@ function UserConfig() {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Error al conseguir datos");
+      toast.error("Error al obtener lista de usuarios");
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // Initialize data
   useEffect(() => {
     if (userId) {
       getUser();
     }
+    getUsers();
   }, [userId]);
 
-  useEffect(() => {
-    getUsers();
-  }, []);
+  // Handle current user form input changes
+  const handleChangeInputs = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setUser((prev) => ({ ...prev, [name]: value }));
+  };
 
-  console.log(user);
+  // Handle edit user form input changes
+  const handleChangeEditUser = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setUserEdit((prev) => ({ ...prev, [name]: value }));
+  };
 
-  //================================>
-  const [truncateClose, setTruncateClose] = useState(false); // Previene doble envío al cerrar
-  const [closeConfirm, setCloseConfirm] = useState(false); // Controla el dialog para cerrar
+  // Handle role selection change
+  const handleRoleChange = (value: string) => {
+    setUserEdit((prev) => ({ ...prev, rol: value }));
+  };
 
+  // Toggle user active status
+  const handleToggleEditActivo = () => {
+    setUserEdit((prev) => ({ ...prev, activo: !prev.activo }));
+  };
+
+  // Update current user
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (truncateClose) return; // Evitar doble clic
-    setTruncateClose(true);
 
     if (!user.contrasenaConfirm) {
-      toast.info("Ingrese su contraseña para confirmar el cambio");
-      setTruncateClose(false);
+      toast.warning("Ingrese su contraseña para confirmar el cambio");
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const response = await axios.patch(
         `${API_URL}/user/update-user/${userId}`,
         user
       );
-      if (response.status === 201 || response.status === 200) {
+      if (response.status === 200 || response.status === 201) {
         toast.success("Usuario actualizado correctamente");
         getUser();
-        setCloseConfirm(false); // Cierra el diálogo explícitamente
+        setConfirmDialog(false);
       }
     } catch (error) {
-      toast.error("Error al registrar cambio, verifique sus credenciales.");
+      toast.error("Error al actualizar usuario. Verifique sus credenciales.");
     } finally {
-      setTruncateClose(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleChangeInputs = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target; //tomas las props del objeto target
-
-    setUser((datosPrevios) => ({
-      ...datosPrevios,
-      [name]: value,
-    }));
-  };
-
-  console.log("los usuarios son: ", users);
-  console.log("El usuario a enviar es: ", userEdit);
-
-  const [openEdit, setOpenEdit] = useState(false);
-
-  const handleToggleEditActivo = (key: keyof User) => {
-    setUserEdit((previaData) => ({
-      ...previaData,
-      [key]: !previaData[key],
-    }));
-  };
-
-  const handleChangeEditUser = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-
-    setUserEdit((datosPrevios) => ({
-      ...datosPrevios,
-      [name]: value,
-    }));
-  };
-
+  // Update another user (as admin)
   const handleSubmitEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!userEdit.contrasenaConfirm) {
-      toast.info("Ingrese su contraseña para confirmar el cambio");
+      toast.warning(
+        "Ingrese su contraseña de administrador para confirmar el cambio"
+      );
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const payload = {
         userId: userEdit.id,
@@ -212,303 +251,632 @@ function UserConfig() {
       };
 
       const response = await axios.patch(
-        `${API_URL}/user/update-user/as-admin/${userId}`, // Enviar el ID del admin actual
+        `${API_URL}/user/update-user/as-admin/${userId}`,
         payload
       );
 
       if (response.status === 200 || response.status === 201) {
+        toast.success("Usuario actualizado correctamente");
         getUsers();
-        toast.success("Usuario Actualizado");
-        setOpenEdit(false);
+        setEditDialog(false);
       }
     } catch (error) {
       console.error(error);
       toast.error("Error al editar usuario");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const userRol = useStore((state) => state.userRol);
+  // Filter users based on search term
+  const filteredUsers = users.filter(
+    (user) =>
+      user.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.correo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.sucursal.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Get role badge color and icon
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "ADMIN":
+        return {
+          color:
+            "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+          icon: <ShieldCheck className="h-3.5 w-3.5" />,
+        };
+      case "SUPER_ADMIN":
+        return {
+          color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+          icon: <ShieldAlert className="h-3.5 w-3.5" />,
+        };
+      case "VENDEDOR":
+        return {
+          color:
+            "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+          icon: <Store className="h-3.5 w-3.5" />,
+        };
+      case "MANAGER":
+        return {
+          color:
+            "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+          icon: <UserCog className="h-3.5 w-3.5" />,
+        };
+      default:
+        return {
+          color:
+            "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+          icon: <User className="h-3.5 w-3.5" />,
+        };
+    }
+  };
 
   return (
-    <div className="container mx-auto flex justify-center items-center">
+    <div className="container mx-auto py-6">
       <Tabs defaultValue="usuario" className="w-full">
-        <div className="flex justify-center">
-          <TabsList className="w-full max-w-4xl flex justify-center space-x-4">
-            <TabsTrigger value="usuario" className="flex-1 text-center">
-              Mi usuario
-            </TabsTrigger>
-            <TabsTrigger value="usuarios" className="flex-1 text-center">
-              Usuarios
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-2 mb-8">
+          <TabsTrigger value="usuario" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            <span>Mi Perfil</span>
+          </TabsTrigger>
+          <TabsTrigger value="usuarios" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span>Gestión de Usuarios</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Mi Perfil Tab */}
         <TabsContent value="usuario">
-          <Card className="w-full max-w-4xl mx-auto shadow-xl">
-            <CardHeader>
-              <CardTitle className="text-center">
-                Editar Mi Usuario {user.nombre ? user.nombre : ""}
-              </CardTitle>
+          <Card className="max-w-2xl mx-auto shadow-lg">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center justify-center mb-2">
+                <div className="h-20 w-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <User className="h-10 w-10 text-gray-500" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl text-center">Mi Perfil</CardTitle>
               <CardDescription className="text-center">
-                Actualiza tu información personal.
+                Actualiza tu información personal y credenciales
               </CardDescription>
             </CardHeader>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <CardContent className="space-y-4">
-                {/* Información personal */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setConfirmDialog(true);
+              }}
+            >
+              <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="nombre">Nombre</Label>
-                    <Input
-                      id="nombre"
-                      name="nombre"
-                      type="text"
-                      value={user.nombre || ""}
-                      onChange={handleChangeInputs}
-                      placeholder="Ingresa tu nombre"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="correo">Correo</Label>
-                    <Input
-                      id="correo"
-                      name="correo"
-                      type="text"
-                      value={user.correo || ""}
-                      onChange={handleChangeInputs}
-                      placeholder="Ingresa tu correo"
-                    />
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Información Personal
+                  </h3>
+                  <Separator />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="nombre"
+                        className="flex items-center gap-1"
+                      >
+                        <User className="h-4 w-4" />
+                        Nombre
+                      </Label>
+                      <Input
+                        id="nombre"
+                        name="nombre"
+                        value={user.nombre}
+                        onChange={handleChangeInputs}
+                        placeholder="Tu nombre completo"
+                        disabled={isLoading}
+                        aria-describedby="nombre-description"
+                      />
+                      <p
+                        id="nombre-description"
+                        className="text-sm text-muted-foreground"
+                      >
+                        Tu nombre completo como aparecerá en el sistema
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="correo"
+                        className="flex items-center gap-1"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Correo Electrónico
+                      </Label>
+                      <Input
+                        id="correo"
+                        name="correo"
+                        type="email"
+                        value={user.correo}
+                        onChange={handleChangeInputs}
+                        placeholder="tu@correo.com"
+                        disabled={isLoading}
+                        aria-describedby="correo-description"
+                      />
+                      <p
+                        id="correo-description"
+                        className="text-sm text-muted-foreground"
+                      >
+                        Tu correo electrónico para iniciar sesión
+                      </p>
+                    </div>
                   </div>
                 </div>
-                {/* Cambio de contraseña */}
+
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="contrasena">Nueva Contraseña</Label>
-                    <Input
-                      id="contrasena"
-                      name="contrasena"
-                      type="password"
-                      value={user.contrasena || ""}
-                      onChange={handleChangeInputs}
-                      placeholder="Ingresa tu nueva contraseña"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="contrasenaConfirm">
-                      Confirmar Contraseña
-                    </Label>
-                    <Input
-                      id="contrasenaConfirm"
-                      name="contrasenaConfirm"
-                      type="password"
-                      value={user.contrasenaConfirm || ""}
-                      onChange={handleChangeInputs}
-                      placeholder="Confirma con tu contraseña de administrador"
-                    />
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <LockIcon className="h-5 w-5" />
+                    Cambiar Contraseña
+                  </h3>
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="contrasena"
+                        className="flex items-center gap-1"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        Nueva Contraseña
+                      </Label>
+                      <Input
+                        id="contrasena"
+                        name="contrasena"
+                        type="password"
+                        value={user.contrasena || ""}
+                        onChange={handleChangeInputs}
+                        placeholder="••••••••"
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="contrasenaConfirm"
+                        className="flex items-center gap-1 text-amber-500"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        Confirmar con Contraseña Actual
+                      </Label>
+                      <Input
+                        id="contrasenaConfirm"
+                        name="contrasenaConfirm"
+                        type="password"
+                        value={user.contrasenaConfirm || ""}
+                        onChange={handleChangeInputs}
+                        placeholder="••••••••"
+                        disabled={isLoading}
+                        aria-describedby="password-confirm-description"
+                      />
+                      <p
+                        id="password-confirm-description"
+                        className="text-sm text-muted-foreground"
+                      >
+                        Ingresa tu contraseña actual para confirmar los cambios
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-end space-x-4">
+              <CardFooter>
                 <Button
+                  type="submit"
                   className="w-full"
-                  type="button"
-                  variant="default"
-                  onClick={() => setCloseConfirm(true)}
+                  disabled={isLoading || isSubmitting}
                 >
-                  Actualizar
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Actualizando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Guardar Cambios
+                    </>
+                  )}
                 </Button>
               </CardFooter>
             </form>
-            {/* Diálogo de confirmación */}
-            <Dialog open={closeConfirm} onOpenChange={setCloseConfirm}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="text-center">
-                    Confirmar Actualización
-                  </DialogTitle>
-                  <DialogDescription className="text-center">
-                    ¿Estás seguro de actualizar tu información?
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter className="flex space-x-4">
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    onClick={() => setCloseConfirm(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="w-full"
-                    type="button"
-                    onClick={handleSubmit}
-                  >
-                    Confirmar
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </Card>
         </TabsContent>
+
+        {/* Gestión de Usuarios Tab */}
         <TabsContent value="usuarios">
-          <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">Lista de Usuarios</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {users &&
-                users.map((usuario) => (
-                  <div
-                    key={usuario.id}
-                    className="bg-white dark:bg-transparent shadow-md rounded-lg p-6 mb-4 flex flex-col gap-3 border-4"
-                  >
-                    <h2 className="text-xl font-semibold flex items-center gap-2">
-                      <UserIcon className="" />
-                      {usuario.nombre}
-                    </h2>
-                    <p className="text-gray-600 flex items-center gap-2">
-                      <AtSign className="" />
-                      <span className="font-medium">Correo:</span>{" "}
-                      {usuario.correo}
-                    </p>
-                    <p className="text-gray-600 flex items-center gap-2">
-                      <Building className="" />
-                      <span className="font-medium">Sucursal:</span>{" "}
-                      {usuario.sucursal.nombre}
-                    </p>
-                    <p className="text-gray-600 flex items-center gap-2">
-                      <ChartNoAxesColumn className="" />
-                      <span className="font-medium">Total Ventas:</span>{" "}
-                      {usuario.totalVentas}
-                    </p>
-                    <p className="text-gray-600 flex items-center gap-2">
-                      <ToggleLeft className="" />
-                      <span className="font-medium">Activo:</span>{" "}
-                      {usuario.activo == true ? "Activo" : "Desactivado"}
-                    </p>
-                    <p className="text-gray-600 flex items-center gap-2">
-                      <Ghost className="" />
-                      <span className="font-medium">Rol:</span> {usuario.rol}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        disabled={userRol !== "SUPER_ADMIN"}
-                        className="w-full"
-                        variant={"destructive"}
-                      >
-                        Eliminar
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setUserEdit({
-                            activo: usuario.activo,
-                            correo: usuario.correo,
-                            id: usuario.id,
-                            nombre: usuario.nombre,
-                            rol: usuario.rol,
-                          });
-                          setOpenEdit(true);
-                        }}
-                        className="w-full"
-                        variant={"default"}
-                      >
-                        Editar
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-            </div>
-            <Dialog onOpenChange={setOpenEdit} open={openEdit}>
-              <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle className="text-center">
-                    Editar Usuario {userEdit.nombre}
-                  </DialogTitle>
-                  <DialogDescription className="text-center">
-                    Editar mis usuarios en las sucursales
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="nombre" className="text-right">
-                      Nombre
-                    </Label>
-                    <Input
-                      name="nombre"
-                      onChange={handleChangeEditUser}
-                      id="nombre"
-                      value={userEdit.nombre}
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="correo" className="text-right">
-                      Correo
-                    </Label>
-                    <Input
-                      name="correo"
-                      onChange={handleChangeEditUser}
-                      id="correo"
-                      value={userEdit.correo}
-                      className="col-span-3"
-                    />
-                  </div>
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Users className="h-6 w-6" />
+                  Gestión de Usuarios
+                </h2>
+                <p className="text-muted-foreground">
+                  Administra los usuarios del sistema y sus permisos
+                </p>
+              </div>
 
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="contrasena" className="text-right">
-                      Nueva contraseña
-                    </Label>
-                    <Input
-                      onChange={handleChangeEditUser}
-                      id="contrasena"
-                      name="contrasena"
-                      type="password"
-                      value={userEdit.contrasena}
-                      className="col-span-3"
-                    />
-                  </div>
-
-                  {userRol === "SUPER_ADMIN" ? (
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="activo" className="text-right">
-                        Activo
-                      </Label>
-                      <Switch
-                        id="activo"
-                        checked={userEdit.activo}
-                        onCheckedChange={() => handleToggleEditActivo("activo")}
-                      />
-                    </div>
-                  ) : null}
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="contrasenaConfirm" className="text-right">
-                      Confirmar contraseña de administrador
-                    </Label>
-                    <Input
-                      onChange={handleChangeEditUser}
-                      id="contrasenaConfirm"
-                      name="contrasenaConfirm"
-                      type="password"
-                      placeholder="Ingrese su contraseña como administrador para confirmar los cambios"
-                      value={userEdit.contrasenaConfirm}
-                      className="col-span-3"
-                    />
-                  </div>
+              <div className="w-full md:w-auto flex flex-col md:flex-row gap-4">
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar usuarios..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-full md:w-[300px]"
+                  />
+                  <Eye className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                 </div>
-                <DialogFooter>
-                  <Button
-                    className="w-full"
-                    type="button"
-                    onClick={handleSubmitEditUser}
-                  >
-                    Guardar cambios
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+
+                <Button className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  <span>Nuevo Usuario</span>
+                </Button>
+              </div>
+            </div>
+
+            <Card className="shadow-md">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Usuario</TableHead>
+                      <TableHead>Correo</TableHead>
+                      <TableHead>Sucursal</TableHead>
+                      <TableHead>Rol</TableHead>
+                      <TableHead>Ventas</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-10">
+                          <div className="flex justify-center items-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                          </div>
+                          <p className="mt-2 text-muted-foreground">
+                            Cargando usuarios...
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-10">
+                          <p className="text-muted-foreground">
+                            No se encontraron usuarios
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredUsers.map((usuario) => {
+                        const roleBadge = getRoleBadge(usuario.rol);
+                        return (
+                          <TableRow key={usuario.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                  <User className="h-5 w-5 text-gray-500" />
+                                </div>
+                                <div>
+                                  <p className="font-medium">
+                                    {usuario.nombre}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    ID: {usuario.id}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <AtSign className="h-4 w-4 text-muted-foreground" />
+                                <span>{usuario.correo}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Building className="h-4 w-4 text-muted-foreground" />
+                                <span>{usuario.sucursal.nombre}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={`flex items-center gap-1 ${roleBadge.color}`}
+                              >
+                                {roleBadge.icon}
+                                {usuario.rol}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <ChartBarIcon className="h-4 w-4 text-muted-foreground" />
+                                <span>{usuario.totalVentas}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {usuario.activo ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 flex items-center gap-1"
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Activo
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 flex items-center gap-1"
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  Inactivo
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setUserEdit({
+                                    id: usuario.id,
+                                    nombre: usuario.nombre,
+                                    correo: usuario.correo,
+                                    rol: usuario.rol,
+                                    activo: usuario.activo,
+                                    contrasena: "",
+                                    contrasenaConfirm: "",
+                                  });
+                                  setEditDialog(true);
+                                }}
+                                className="flex items-center gap-1"
+                              >
+                                <Edit className="h-4 w-4" />
+                                <span>Editar</span>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Confirm Update Dialog */}
+      <Dialog open={confirmDialog} onOpenChange={setConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Actualización</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas actualizar tu información personal?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <User className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="font-medium">{user.nombre}</p>
+                <p className="text-sm text-muted-foreground">{user.correo}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialog(false)}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Actualizando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Confirmar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editDialog} onOpenChange={setEditDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">Editar Usuario</DialogTitle>
+            <DialogDescription className="text-center">
+              Actualiza la información y permisos del usuario
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitEditUser}>
+            <div className="py-2 space-y-3">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <User className="h-5 w-5 text-gray-500" />
+                </div>
+                <div>
+                  <p className="font-medium">{userEdit.nombre}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {userEdit.correo}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <Label
+                    htmlFor="edit-nombre"
+                    className="text-xs flex items-center gap-1 mb-1"
+                  >
+                    <User className="h-3 w-3" />
+                    Nombre
+                  </Label>
+                  <Input
+                    id="edit-nombre"
+                    name="nombre"
+                    value={userEdit.nombre}
+                    onChange={handleChangeEditUser}
+                    placeholder="Nombre completo"
+                    className="h-8"
+                  />
+                </div>
+
+                <div>
+                  <Label
+                    htmlFor="edit-correo"
+                    className="text-xs flex items-center gap-1 mb-1"
+                  >
+                    <Mail className="h-3 w-3" />
+                    Correo Electrónico
+                  </Label>
+                  <Input
+                    id="edit-correo"
+                    name="correo"
+                    type="email"
+                    value={userEdit.correo}
+                    onChange={handleChangeEditUser}
+                    placeholder="correo@ejemplo.com"
+                    className="h-8"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <Label
+                    htmlFor="edit-rol"
+                    className="text-xs flex items-center gap-1 mb-1"
+                  >
+                    <ShieldCheck className="h-3 w-3" />
+                    Rol
+                  </Label>
+                  <Select value={userEdit.rol} onValueChange={handleRoleChange}>
+                    <SelectTrigger id="edit-rol" className="h-8">
+                      <SelectValue placeholder="Seleccionar rol" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ADMIN">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4" />
+                          <span>Admin</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="VENDEDOR">
+                        <div className="flex items-center gap-2">
+                          <Store className="h-4 w-4" />
+                          <span>Vendedor</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label
+                    htmlFor="edit-contrasena"
+                    className="text-xs flex items-center gap-1 mb-1"
+                  >
+                    <KeyRound className="h-3 w-3" />
+                    Nueva Contraseña (opcional)
+                  </Label>
+                  <Input
+                    id="edit-contrasena"
+                    name="contrasena"
+                    type="password"
+                    value={userEdit.contrasena || ""}
+                    onChange={handleChangeEditUser}
+                    placeholder="Dejar en blanco para mantener"
+                    className="h-8"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between py-1">
+                <Label
+                  htmlFor="edit-activo"
+                  className="text-xs flex items-center gap-1"
+                >
+                  <CheckCircle className="h-3 w-3" />
+                  Usuario Activo
+                </Label>
+                <Switch
+                  disabled
+                  id="edit-activo"
+                  checked={userEdit.activo}
+                  onCheckedChange={handleToggleEditActivo}
+                />
+              </div>
+
+              <Separator className="my-1" />
+
+              <div>
+                <Label
+                  htmlFor="edit-contrasenaConfirm"
+                  className="text-xs flex items-center gap-1 text-amber-500 mb-1"
+                >
+                  <KeyRound className="h-3 w-3" />
+                  Confirmar con tu Contraseña
+                </Label>
+                <Input
+                  id="edit-contrasenaConfirm"
+                  name="contrasenaConfirm"
+                  type="password"
+                  value={userEdit.contrasenaConfirm || ""}
+                  onChange={handleChangeEditUser}
+                  placeholder="Tu contraseña de administrador"
+                  required
+                  className="h-8"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ingresa tu contraseña de administrador para confirmar los
+                  cambios
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditDialog(false)}
+                disabled={isSubmitting}
+                size="sm"
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting} size="sm">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-3 w-3" />
+                    Guardar Cambios
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-export default UserConfig;

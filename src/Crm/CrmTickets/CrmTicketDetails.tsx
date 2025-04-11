@@ -317,12 +317,12 @@ export default function TicketDetail({
   };
 
   return (
-    <div className="flex flex-col h-full p-2 rounded-sm">
-      <div className="border-b px-0">
-        <div className="flex items-center justify-between bg-muted sm:bg-transparent rounded-sm p-2">
+    <div className="h-[calc(100vh-220px)] flex flex-col">
+      <div className="border-b px-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-green-400 text-gray-800 font-semibold">
+              <AvatarFallback>
                 {ticket.customer
                   ? ticket.customer.name.slice(0, 2).toUpperCase()
                   : "NA"}{" "}
@@ -650,7 +650,7 @@ export default function TicketDetail({
                   }
                   onChange={handleChangeTecSelect}
                   className="text-black text-[13px]"
-                  menuPlacement="top"
+                  menuPlacement="bottom"
                 />
               </div>
             </div>

@@ -9,23 +9,8 @@ import type { Ticket } from "./ticketTypes";
 // import { mockTickets } from "./mock-data";
 import { toast } from "sonner";
 import axios from "axios";
-// import { set } from "date-fns";
-import { OptionSelected } from "../ReactSelectComponent/OptionSelected";
-import { MultiValue } from "react-select";
-
 const VITE_CRM_API_URL = import.meta.env.VITE_CRM_API_URL;
-
-// Tipos para las fechas
-type DateRange = {
-  startDate: Date | undefined;
-  endDate: Date | undefined;
-};
-
 export default function TicketDashboard() {
-  const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: undefined,
-    endDate: undefined,
-  });
   const [tickets, setTickets] = useState<Ticket[]>([]);
   console.log(setTickets);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null); // Solo ID
@@ -54,45 +39,7 @@ export default function TicketDashboard() {
         ? ticket.creator && String(ticket.creator.id) === selectedCreator
         : true;
 
-      const matchesTecnico = tecnicoSelected
-        ? ticket.assignee.id.toString() === tecnicoSelected
-        : true;
-
-      const matchesEtiquetas =
-        labelsSelecteds && labelsSelecteds.length > 0
-          ? ticket.tags?.some(
-              (tag) => tag.value.toString() === labelsSelecteds.toString()
-            )
-          : true;
-
-      const matchesDate = () => {
-        if (!dateRange.startDate && !dateRange.endDate) return true;
-
-        const ticketDate = new Date(ticket.date);
-
-        // Ajustar fechas de filtrado para cubrir días completos
-        const start = dateRange.startDate
-          ? new Date(dateRange.startDate)
-          : new Date(0); // Fecha mínima
-        start.setHours(0, 0, 0, 0); // Inicio del día
-
-        const end = dateRange.endDate
-          ? new Date(dateRange.endDate)
-          : new Date(); // Fecha actual
-        end.setHours(23, 59, 59, 999); // Fin del día
-
-        return ticketDate >= start && ticketDate <= end;
-      };
-
-      return (
-        matchesText &&
-        matchesStatus &&
-        matchesAssignee &&
-        matchesCreator &&
-        matchesTecnico &&
-        matchesEtiquetas &&
-        matchesDate()
-      );
+      return matchesText && matchesStatus && matchesAssignee && matchesCreator;
     });
   };
 
@@ -109,13 +56,6 @@ export default function TicketDashboard() {
       toast.error("Error al conseguir tickets");
     }
   };
-  console.log("tickets", tickets);
-  console.log(
-    "las fechas seleccionadas son: ",
-    dateRange.startDate,
-    dateRange.endDate
-  );
-
   useEffect(() => {
     getTickets();
   }, []);
@@ -132,7 +72,11 @@ export default function TicketDashboard() {
   }
 
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
-  const [tecnicos, setTecnicos] = useState<Usuario[]>([]);
+  const [tecnicos, setTecnicos] = useState<Usuario[]>([
+    { id: 1, nombre: "Técnico 1" },
+    { id: 2, nombre: "Técnico 2" },
+    { id: 3, nombre: "Técnico 3" },
+  ]);
   const optionsLabels = etiquetas.map((label) => ({
     value: label.id.toString(),
     label: label.nombre,
@@ -180,83 +124,58 @@ export default function TicketDashboard() {
     (ticket) => ticket.id === selectedTicketId
   );
 
-  const [tecnicoSelected, setTecnicoSelected] = useState<string | null>(null);
-  console.log("El tecnico seleccionado es: ", tecnicoSelected);
-
-  const handleSelectedTecnico = (optionSelect: OptionSelected | null) => {
-    setTecnicoSelected(optionSelect ? optionSelect.value : null);
-  };
-
-  const [labelsSelecteds, setLabelsSelecteds] = useState<number[]>([]);
-  const handleChangeLabels = (
-    selectedOptions: MultiValue<{ value: string; label: string }>
-  ) => {
-    const selectedIds = selectedOptions.map((option) => parseInt(option.value));
-    setLabelsSelecteds(selectedIds);
-  };
-
   return (
-    <div className="container mx-auto p-2 md:p-0 lg:py-0">
+    <div className="container mx-auto p-2 md:p-4 lg:py-0">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full"
       >
-        <div className="flex flex-wrap gap-2"></div>
+        <div className="flex gap-2 "></div>
         <TicketFilters
           onFilterChange={setFilterText}
           onStatusChange={setSelectedStatus}
+          //Estados para abrir y cerrar el Dialog, y funcion get
           openCreatT={openCreateTicket}
           setOpenCreateT={setOpenCreateTicket}
           getTickets={getTickets}
+          //PARA EL FILTER
           setSelectedAssignee={setSelectedAssignee}
           setSelectedCreator={setSelectedCreator}
-          //tecnicos para filtrado
-          tecnicos={tecnicos}
-          tecnicoSelected={tecnicoSelected}
-          handleSelectedTecnico={handleSelectedTecnico}
-          //etiquetas filtrado
-          etiquetas={etiquetas}
-          etiquetasSelecteds={labelsSelecteds}
-          handleChangeLabels={handleChangeLabels}
-          //rango de fechas creadas
-          dateRange={dateRange}
-          setDateRange={setDateRange}
         />
       </motion.div>
 
-      {/* En móvil: vista vertical con altura fija para cada panel */}
-      <div className="mt-2 flex flex-col lg:grid lg:grid-cols-2 gap-3 md:gap-4 xl:gap-6 ">
+      <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-4 xl:gap-6">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
-          className="bg-card rounded-lg shadow h-[40vh] sm:h-[45vh] md:h-[50vh] lg:h-[calc(100vh-220px)] "
+          className="bg-card rounded-lg shadow"
         >
           <TicketList
-            tickets={filterTickets(tickets)}
-            selectedTicketId={selectedTicketId}
-            onSelectTicket={(ticket) => setSelectedTicketId(ticket.id)}
+            tickets={filterTickets(tickets)} // Tickets
+            selectedTicketId={selectedTicketId} // Solo ID del ticket seleccionado
+            onSelectTicket={(ticket) => setSelectedTicketId(ticket.id)} // Setea solo el ID
           />
         </motion.div>
 
-        {selectedTicket && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, x: 0 }}
-            animate={{ opacity: 1, y: 0, x: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="bg-card rounded-lg shadow h-[40vh] sm:h-[45vh] md:h-[50vh] lg:h-[calc(100vh-220px)] z-10"
-          >
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="bg-card rounded-lg shadow"
+        >
+          {selectedTicket && (
             <TicketDetail
               ticket={selectedTicket}
               getTickets={getTickets}
               optionsLabels={optionsLabels}
               optionsTecs={optionsTecs}
+              //setl del ticket para preveer error cuando elimine el mismo
               setSelectedTicketId={setSelectedTicketId}
             />
-          </motion.div>
-        )}
+          )}
+        </motion.div>
       </div>
     </div>
   );

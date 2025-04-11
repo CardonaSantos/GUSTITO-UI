@@ -48,7 +48,7 @@ import CreateVentaCuotaForm from "./Pages/VentaCuotas/CreateVentaCuotas";
 import ContratoCredito from "./Pages/VentaCuotas/ContratoCredito";
 import EditPlaceHolder from "./Pages/VentaCuotas/EditPlaceHolder";
 import CuotasPage from "./components/PDF/Cuotas/CuotasPage";
-import { ProtectRSuperAdmin } from "./components/Auth/ProtectedRSuperAdmin";
+// import { ProtectRSuperAdmin } from "./components/Auth/ProtectedRSuperAdmin";
 import { ProtectRouteAdmin } from "./components/Auth/ProtectRouteAdmin";
 import DashboardEmpleado from "./Pages/Dashboard/DashboardEmpleado";
 import RepairOrderForm from "./Pages/Reparaciones/RepairOrder";
@@ -82,7 +82,6 @@ import CrmRuta from "./Crm/CrmRutas/CrmRuta";
 import CrmPdfPago from "./Crm/CrmPdfPago/CrmPdfPago";
 import RutaCobro from "./Crm/CrmRutas/CrmRutasCobro/RutaCobro";
 import EditCustomers from "./Crm/CrmCustomerEdition/CrmCustomerEdition";
-import SectorsManagement from "./Crm/CrmSector/SectorsManagement";
 // import { RedirectToDashboard } from "./components/Auth/RedirectToDashboard";
 
 function App() {
@@ -167,9 +166,9 @@ function App() {
             <Route
               path="/add-sucursal"
               element={
-                <ProtectRSuperAdmin>
-                  <CreateSucursal />
-                </ProtectRSuperAdmin>
+                // <ProtectRSuperAdmin>
+                <CreateSucursal />
+                // </ProtectRSuperAdmin>
               }
             />
 
@@ -194,9 +193,9 @@ function App() {
             <Route
               path="/categorias"
               element={
-                <ProtectRouteAdmin>
+                <ProtectedRoute>
                   <CreateCategory />
-                </ProtectRouteAdmin>
+                </ProtectedRoute>
               }
             />
 
@@ -257,9 +256,9 @@ function App() {
             <Route
               path="/sucursal"
               element={
-                <ProtectRouteAdmin>
-                  <Sucursales />
-                </ProtectRouteAdmin>
+                // <ProtectRouteAdmin>
+                <Sucursales />
+                // </ProtectRouteAdmin>
               }
             />
 
@@ -598,6 +597,15 @@ function App() {
               }
             />
 
+            {/* <Route
+              path="/crm/cliente-detalle"
+              element={
+                <ProtectRouteCrmUser>
+                  <CustomerDetails />
+                </ProtectRouteCrmUser>
+              }
+            /> */}
+
             <Route
               path="/crm/empresa"
               element={
@@ -685,15 +693,6 @@ function App() {
               element={
                 <ProtectRouteCrmUser>
                   <RutaCobro />
-                </ProtectRouteCrmUser>
-              }
-            />
-
-            <Route
-              path="/crm-sectores"
-              element={
-                <ProtectRouteCrmUser>
-                  <SectorsManagement />
                 </ProtectRouteCrmUser>
               }
             />

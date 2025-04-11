@@ -208,7 +208,7 @@ export default function PuntoVenta() {
       telefono: telefono.trim(),
       direccion: direccion.trim(),
       dpi: dpi.trim(),
-      iPInternet: iPInternet.trim(),
+      // iPInternet: iPInternet.trim(),
       imei: imei.trim(),
     };
 
@@ -298,15 +298,12 @@ export default function PuntoVenta() {
   const [dpi, setDpi] = useState<string>("");
   const [imei, setImei] = useState<string>("");
 
-  const [iPInternet, setIpInternet] = useState<string>("");
-
   const [telefono, setTelefono] = useState<string>("");
   const [direccion, setDireccion] = useState<string>("");
   console.log("Los datos de cf final son: ", {
     nombre,
     telefono,
     direccion,
-    iPInternet,
   });
 
   const updatePrice = (productId: number, newPrice: number) => {
@@ -481,7 +478,9 @@ export default function PuntoVenta() {
         <div className="space-y-2">
           <Card className="shadow-xl">
             <CardHeader>
-              <CardTitle>Buscar productos</CardTitle>
+              <CardTitle className="text-lg text-center">
+                Buscar productos
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex space-x-2">
@@ -591,7 +590,7 @@ export default function PuntoVenta() {
         <div className="space-y-2 ">
           <Card className="flex flex-col h-2/4 shadow-xl">
             <CardHeader>
-              <CardTitle className="text-xl">Cart</CardTitle>
+              <CardTitle className="text-lg text-center">Carrito</CardTitle>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -769,7 +768,9 @@ export default function PuntoVenta() {
           <Card className="shadow-xl">
             <CardContent>
               <div className="flex justify-center p-2 items-center">
-                <h2 className="font-bold text-xl">Método de Pago & Cliente</h2>
+                <h2 className="font-bold text-base">
+                  Método de Pago & Cliente
+                </h2>
               </div>
 
               <div className="mb-4 w-full">
@@ -815,7 +816,7 @@ export default function PuntoVenta() {
                         disabled={!!selectedCustomerID}
                         value={nombre}
                         onChange={(e) => setNombre(e.target.value)}
-                        placeholder="Referencia"
+                        placeholder="Nombre cliente"
                         className="mt-1 w-full"
                       />
                     </div>
@@ -825,38 +826,29 @@ export default function PuntoVenta() {
                         disabled={!!selectedCustomerID}
                         value={telefono}
                         onChange={(e) => setTelefono(e.target.value)}
-                        placeholder="+502 5060 7080"
+                        placeholder="Tel. referencia (opcional)"
                         className="mt-1 w-full"
                       />
                     </div>
-                    <div>
-                      <Label>DPI</Label>
-                      <Input
-                        disabled={!!selectedCustomerID}
-                        value={dpi}
-                        onChange={(e) => setDpi(e.target.value)}
-                        placeholder="Número de DPI"
-                        className="mt-1 w-full"
-                      />
-                    </div>
+
                     <div>
                       <Label>Dirección</Label>
                       <Input
                         disabled={!!selectedCustomerID}
                         value={direccion}
                         onChange={(e) => setDireccion(e.target.value)}
-                        placeholder="C. Central Juan Pablo II, Jacaltenango Canton Pila"
+                        placeholder="Dirección cliente (opcional)"
                         className="mt-1 w-full"
                       />
                     </div>
 
                     <div>
-                      <Label>Dirección IP</Label>
+                      <Label>DPI</Label>
                       <Input
                         disabled={!!selectedCustomerID}
-                        value={iPInternet}
-                        onChange={(e) => setIpInternet(e.target.value)}
-                        placeholder="192.168.1.1 (opcional)"
+                        value={dpi}
+                        onChange={(e) => setDpi(e.target.value)}
+                        placeholder="Opcional"
                         className="mt-1 w-full"
                       />
                     </div>
@@ -896,7 +888,9 @@ export default function PuntoVenta() {
       <div className="mt-20">
         <Card className="shadow-xl">
           <CardHeader>
-            <CardTitle>Petición de precio especial</CardTitle>
+            <CardTitle className="text-lg">
+              Petición de precio especial
+            </CardTitle>
             <CardDescription>
               Al solicitar un precio especial, esa instancia solo se podrá usar
               en una venta

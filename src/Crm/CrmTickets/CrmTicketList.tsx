@@ -22,7 +22,6 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
-import { useEffect, useState } from "react";
 // import { Button } from "@/components/ui/button";
 // import CrmCreateTicket from "./CreateTickets/CrmCreateTicket";
 
@@ -106,42 +105,8 @@ export default function TicketList({
 
   console.log("La list de tickets es: ", tickets);
 
-  const avatarColorsPastelStronger = [
-    "bg-pink-300", // Rosa pastel más fuerte
-    "bg-blue-300", // Azul pastel más fuerte
-    "bg-green-300", // Verde pastel más fuerte
-    "bg-yellow-300", // Amarillo pastel más fuerte
-    "bg-indigo-300", // Índigo pastel más fuerte
-    "bg-purple-300", // Morado pastel más fuerte
-    "bg-teal-300", // Verde azulado pastel más fuerte
-    "bg-lime-300", // Lima pastel más fuerte
-  ];
-
-  const [colorMap, setColorMap] = useState<Record<string, string>>({});
-
-  const getRandomColor = () => {
-    const randomIndex = Math.floor(
-      Math.random() * avatarColorsPastelStronger.length
-    );
-    return avatarColorsPastelStronger[randomIndex];
-  };
-
-  // Efecto para inicializar los colores cuando los tickets cambian
-  useEffect(() => {
-    const newColorMap: Record<string, string> = { ...colorMap }; // Hacer una copia del colorMap actual
-
-    tickets.forEach((ticket) => {
-      // Si el ticket aún no tiene color asignado, asigna un color aleatorio
-      if (!newColorMap[ticket.id]) {
-        newColorMap[ticket.id] = getRandomColor();
-      }
-    });
-
-    setColorMap(newColorMap); // Actualiza el colorMap
-  }, [tickets]); // El efecto se ejecuta cuando la lista de tickets cambia
-
   return (
-    <div className="flex flex-col h-full ">
+    <div className="h-[calc(100vh-220px)] flex flex-col">
       <Tabs defaultValue="inbox" className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-10">
           <TabsTrigger value="inbox">TODOS</TabsTrigger>
@@ -165,77 +130,70 @@ export default function TicketList({
               ) : (
                 tickets
                   .filter((ticket) => ticket.status !== "RESUELTA")
-                  .map((ticket) => {
-                    const color = colorMap[ticket.id]; // Accede al color desde el estado
-                    return (
-                      <motion.div
-                        key={ticket.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className={`border-b p-4 cursor-pointer ${
-                          Number(selectedTicketId) === Number(ticket.id)
-                            ? "bg-gray-100 dark:bg-gray-900"
-                            : ""
-                        }`}
-                        onClick={() => {
-                          onSelectTicket(ticket);
-                          console.log("El ticket seleccionado es: ", ticket.id);
-                        }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback
-                              className={`${color} text-gray-800 font-semibold`}
-                            >
+                  .map((ticket) => (
+                    <motion.div
+                      key={ticket.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className={`border-b p-4 cursor-pointer ${
+                        Number(selectedTicketId) === Number(ticket.id)
+                          ? "bg-gray-100 dark:bg-gray-900"
+                          : ""
+                      }`}
+                      onClick={() => {
+                        onSelectTicket(ticket);
+                        console.log("El ticket seleccionado es: ", ticket.id);
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                            {ticket.customer
+                              ? ticket.customer.name.slice(0, 2).toUpperCase()
+                              : "NA"}{" "}
+                            {/* Aquí se asigna las iniciales del técnico si hay asignado, si no, se muestra "NA" */}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="text-[13px]">
+                              #{ticket.id} ·{" "}
                               {ticket.customer
-                                ? ticket.customer.name.slice(0, 2).toUpperCase()
-                                : "NA"}{" "}
-                              {/* Iniciales del cliente */}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="text-[13px]">
-                                #{ticket.id} ·{" "}
-                                {ticket.customer
-                                  ? ticket.customer.name
-                                  : "No asignado"}{" "}
-                                {/* Si el ticket tiene asignado un técnico, muestra su nombre, si no, muestra "No asignado" */}
-                              </div>
-                              <div className="text-xs ">
-                                {format(new Date(ticket.date), "d MMM yyyy", {
-                                  locale: es,
-                                })}
-                              </div>
+                                ? ticket.customer.name
+                                : "No asignado"}{" "}
+                              {/* Si el ticket tiene asignado un técnico, muestra su nombre, si no, muestra "No asignado" */}
                             </div>
-                            <h3 className="font-normal text-base truncate">
-                              {ticket.title}
-                            </h3>
-                            <p className="text-[12px] line-clamp-2">
-                              {ticket.description}
-                            </p>
+                            <div className="text-xs ">
+                              {format(new Date(ticket.date), "d MMM yyyy", {
+                                locale: es,
+                              })}
+                            </div>
                           </div>
-                          {/* {ticket.status === "NUEVO" && ( */}
-                          <div className="mt-2">
-                            <Badge
-                              variant="outline"
-                              className={`${
-                                getBadgeProps(ticket.status).bgColor
-                              } ${getBadgeProps(ticket.status).text}  ${
-                                getBadgeProps(ticket.status).textColor
-                              } `}
-                            >
-                              <span className="text-[10px]">
-                                {ticket.status}
-                              </span>
-                            </Badge>
-                          </div>
-                          {/* )} */}
+                          <h3 className="font-normal text-base truncate">
+                            {ticket.title}
+                          </h3>
+                          <p className="text-[12px] line-clamp-2">
+                            {ticket.description}
+                          </p>
                         </div>
-                      </motion.div>
-                    );
-                  })
+                        {/* {ticket.status === "NUEVO" && ( */}
+                        <div className="mt-2">
+                          <Badge
+                            variant="outline"
+                            className={`${
+                              getBadgeProps(ticket.status).bgColor
+                            } ${getBadgeProps(ticket.status).text}  ${
+                              getBadgeProps(ticket.status).textColor
+                            } `}
+                          >
+                            <span className="text-[10px]">{ticket.status}</span>
+                          </Badge>
+                        </div>
+                        {/* )} */}
+                      </div>
+                    </motion.div>
+                  ))
               )}
             </AnimatePresence>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Dispatch, SetStateAction } from "react";
+import { useState } from "react";
 // import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,28 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CrmCreateTicket from "./CreateTickets/CrmCreateTicket";
 import { useStoreCrm } from "../ZustandCrm/ZustandCrmContext";
-import ReactSelectComponent, { MultiValue } from "react-select";
-import { OptionSelected } from "../ReactSelectComponent/OptionSelected";
-import DatePicker from "react-datepicker";
-
-interface Tecnicos {
-  id: number;
-  nombre: string;
-}
-
-interface Etiqueta {
-  id: number;
-  nombre: string;
-}
-
-type DateRange = {
-  startDate: Date | undefined;
-  endDate: Date | undefined;
-};
 
 interface TicketFiltersProps {
   onFilterChange: (value: string) => void;
@@ -44,25 +32,11 @@ interface TicketFiltersProps {
   //filter de asignados
   setSelectedAssignee: (value: string | null) => void;
   setSelectedCreator: (value: string | null) => void;
-  //tecnicos
-  tecnicos: Tecnicos[];
-  tecnicoSelected: string | null;
-  handleSelectedTecnico: (value: OptionSelected | null) => void;
-  //filtrado de etiquetas
-  etiquetas: Etiqueta[];
-  //etiquetas seleccionadas
-  etiquetasSelecteds: number[];
-  handleChangeLabels: (
-    selectedOptions: MultiValue<{ value: string; label: string }>
-  ) => void;
-  //rango de fechas
-  dateRange: DateRange;
-  setDateRange: Dispatch<SetStateAction<DateRange>>;
 }
 
 export default function TicketFilters({
   onFilterChange,
-  // onStatusChange,
+  onStatusChange,
   //Propiedades del create ticket
   getTickets,
   openCreatT,
@@ -70,19 +44,8 @@ export default function TicketFilters({
   //para filter select
   setSelectedAssignee,
   setSelectedCreator,
-  //pra el filtro
-  tecnicos,
-  tecnicoSelected,
-  handleSelectedTecnico,
-  //filtrado de etiquetas
-  etiquetas,
-  etiquetasSelecteds,
-  handleChangeLabels,
-  //filtrado por fechas
-  dateRange,
-  setDateRange,
 }: TicketFiltersProps) {
-  // const [date, setDate] = useState<Date | undefined>(undefined);
+  const [date, setDate] = useState<Date | undefined>(undefined);
   const userId = useStoreCrm((state) => state.userIdCRM) ?? 0;
 
   const handleFilterChange = (value: string) => {
@@ -98,15 +61,6 @@ export default function TicketFilters({
     }
   };
 
-  const optionsTecnicos = tecnicos.map((tec) => ({
-    value: String(tec.id),
-    label: tec.nombre,
-  }));
-  const optionsLabels = etiquetas.map((label) => ({
-    value: label.id.toString(),
-    label: label.nombre,
-  }));
-
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -118,59 +72,39 @@ export default function TicketFilters({
           />
         </div>
 
-        {/* Rango de fechas */}
-        <div className="space-y-1">
-          <div className="flex gap-2">
-            <DatePicker
-              locale={es}
-              selected={dateRange.startDate || null}
-              onChange={(date: Date | null) =>
-                setDateRange((prev) => ({
-                  ...prev,
-                  startDate: date || undefined,
-                }))
-              }
-              selectsStart
-              startDate={dateRange.startDate}
-              endDate={dateRange.endDate}
-              placeholderText="Fecha inicial"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              dateFormat="dd/MM/yyyy"
-              isClearable
-            />
+        <Select onValueChange={onStatusChange}>
+          <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectValue placeholder="Etiquetas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="urgent">Urgente</SelectItem>
+            <SelectItem value="maintenance">Mantenimiento</SelectItem>
+            <SelectItem value="installation">Instalación</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <DatePicker
-              selected={dateRange.endDate || null}
-              onChange={(date: Date | null) =>
-                setDateRange((prev) => ({
-                  ...prev,
-                  endDate: date || undefined,
-                }))
-              }
-              selectsEnd
-              startDate={dateRange.startDate}
-              endDate={dateRange.endDate}
-              minDate={dateRange.startDate}
-              placeholderText="Fecha final"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              dateFormat="dd/MM/yyyy"
-              isClearable
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full justify-start text-left font-normal sm:w-[240px]"
+            >
+              <span>
+                {date
+                  ? format(date, "PPP", { locale: es })
+                  : "Seleccionar fecha"}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={setDate}
+              initialFocus
             />
-          </div>
-        </div>
-
-        {/* QUITARLE EL DISABLE CUANDO LO TENGA LISTO */}
-        <ReactSelectComponent
-          placeholder="Filtrar por etiquetas"
-          className="w-full sm:w-[300px] text-black text-xs"
-          options={optionsLabels}
-          isClearable
-          isMulti
-          onChange={handleChangeLabels}
-          value={optionsLabels.filter((option) =>
-            etiquetasSelecteds.includes(Number.parseInt(option.value))
-          )}
-        />
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -196,29 +130,34 @@ export default function TicketFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="assignedToMe">{`Asignados a mí`}</SelectItem>
-            <SelectItem value="createdByMe">{`Creados por mí`}</SelectItem>
+            <SelectItem value="assignedToMe">{`Asignados a mí (${userId})`}</SelectItem>
+            <SelectItem value="createdByMe">{`Creados por mí (${userId})`}</SelectItem>
           </SelectContent>
         </Select>
 
-        <ReactSelectComponent
-          placeholder="Filtrar por técnico"
-          className="w-full sm:w-[200px] text-black text-xs"
-          options={optionsTecnicos}
-          isClearable
-          onChange={handleSelectedTecnico}
-          value={
-            tecnicoSelected
-              ? {
-                  value: tecnicoSelected,
-                  label:
-                    tecnicos.find(
-                      (tec) => tec.id.toString() === tecnicoSelected
-                    )?.nombre || "",
-                }
-              : null
-          }
-        />
+        {/* <div className="flex flex-wrap gap-2">
+          <Button className="h-[32px]" onClick={() => onStatusChange("nuevo")}>
+            Nuevo
+          </Button>
+          <Button
+            className="h-[32px]"
+            onClick={() => onStatusChange("abierto")}
+          >
+            Abiertos
+          </Button>
+          <Button
+            className="h-[32px]"
+            onClick={() => onStatusChange("pendiente")}
+          >
+            Pendiente
+          </Button>
+          <Button
+            className="h-[32px]"
+            onClick={() => onStatusChange("solucionado")}
+          >
+            Solucionado
+          </Button>
+        </div> */}
       </div>
     </div>
   );

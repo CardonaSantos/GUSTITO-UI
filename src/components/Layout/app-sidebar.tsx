@@ -1,6 +1,5 @@
 import {
   Home,
-  ShieldCheck,
   Ticket,
   Wallet,
   ClipboardList,
@@ -8,16 +7,10 @@ import {
   CoinsIcon,
   Bolt,
   ClipboardPen,
-  FileText,
   CreditCard,
-  WrenchIcon,
   ChevronDown,
   PackageOpen,
   Tag,
-  Building2,
-  FileSpreadsheet,
-  Target,
-  Goal,
   UserPlus,
   Waypoints,
   Cpu,
@@ -50,9 +43,7 @@ import {
   AlertCircle,
   Clock,
   Building,
-  CircleUser,
   NotebookIcon,
-  SendToBackIcon,
   NotepadText,
   FileStack,
 } from "lucide-react";
@@ -77,28 +68,24 @@ const menuVendedor = [
   { icon: ShoppingCart, label: "Punto de Venta", href: "/punto-venta" },
   { icon: Clock, label: "Historial de Ventas", href: "/historial/ventas" },
 
-  // Sección de Inventario y Stock
+  // Sección de Stock
+  { icon: Box, label: "Añadir Stock", href: "/adicion-stock" },
+  // { icon: Tag, label: "Categorías", href: "/categorias" },
+
   {
-    icon: Package,
-    label: "Inventario y Stock",
-    submenu: [
-      { icon: Package, label: "Inventario", href: "/inventario" },
-      {
-        icon: NotepadText,
-        label: "Historial Cambios Precio",
-        href: "/historial-cambios-precio",
-      },
-      {
-        icon: FileStack,
-        label: "Stock Eliminaciones",
-        href: "/stock-eliminaciones",
-      },
-      {
-        icon: ClipboardPen,
-        label: "Ventas Eliminaciones",
-        href: "/historial/ventas-eliminaciones",
-      },
-    ],
+    icon: ClipboardPen,
+    label: "Ventas Eliminaciones",
+    href: "/historial/ventas-eliminaciones",
+  },
+  {
+    icon: FileStack,
+    label: "Stock Eliminaciones",
+    href: "/stock-eliminaciones",
+  },
+  {
+    icon: NotepadText,
+    label: "Historial Cambios Precio",
+    href: "/historial-cambios-precio",
   },
 
   // Sección de Clientes
@@ -106,9 +93,20 @@ const menuVendedor = [
 
   // Vencimientos
   { icon: AlertCircle, label: "Vencimientos", href: "/vencimientos" },
-  { icon: ShieldCheck, label: "Garantía Manage", href: "/garantia/manage" },
-  { icon: CreditCard, label: "Créditos", href: "/creditos" },
-  { icon: WrenchIcon, label: "Reparaciones", href: "/reparaciones" },
+
+  // Sección de Caja
+  {
+    icon: Wallet,
+    label: "Caja",
+    submenu: [
+      {
+        icon: Wallet,
+        label: "Depósitos y Egresos",
+        href: "/depositos-egresos/",
+      },
+      { icon: ClipboardList, label: "Registrar Caja", href: "/registro-caja/" },
+    ],
+  },
 ];
 
 const menuItemsAdmin = [
@@ -117,13 +115,12 @@ const menuItemsAdmin = [
   { icon: ShoppingCart, label: "Punto de Venta", href: "/punto-venta" },
   { icon: Clock, label: "Historial de Ventas", href: "/historial/ventas" },
 
-  // Sección de Inventario y Stock con submenú
+  // Sección de Inventario y Stock
   {
     icon: Package,
     label: "Inventario y Stock",
     submenu: [
       { icon: PackageOpen, label: "Inventario", href: "/inventario" },
-
       { icon: Box, label: "Añadir Stock", href: "/adicion-stock" },
       {
         icon: NotepadText,
@@ -139,56 +136,13 @@ const menuItemsAdmin = [
     ],
   },
 
+  // Sección de Categorías
   { icon: Tag, label: "Categorías", href: "/categorias" },
 
   // Vencimientos
   { icon: AlertCircle, label: "Vencimientos", href: "/vencimientos" },
 
-  // Sección de Transferencias
-  {
-    icon: SendToBackIcon,
-    label: "Transferencias",
-    submenu: [
-      {
-        icon: NotepadText,
-        label: "Transferir Productos",
-        href: "/transferencia",
-      },
-      {
-        icon: NotepadText,
-        label: "Transferencia Historial",
-        href: "/transferencia-historial",
-      },
-    ],
-  },
-
-  // Sección de Clientes y Proveedores con submenú
-  {
-    icon: Users,
-    label: "Clientes y Proveedores",
-    submenu: [
-      { icon: Users, label: "Clientes", href: "/clientes-manage" },
-      { icon: CircleUser, label: "Proveedores", href: "/agregar-proveedor" },
-    ],
-  },
-
-  // Sección de Sucursales
-  {
-    icon: Building,
-    label: "Sucursales",
-    submenu: [{ icon: Building, label: "Mis Sucursales", href: "/sucursal" }],
-  },
-  // Gestión de Garantías y Tickets
-  {
-    icon: ShieldCheck,
-    label: "Garantía y Ticket",
-    submenu: [
-      { icon: ShieldCheck, label: "Garantía Manage", href: "/garantia/manage" },
-      { icon: Ticket, label: "Ticket Manage", href: "/ticket/manage" },
-    ],
-  },
-
-  // Gestión de Caja
+  // Sección de Caja
   {
     icon: Wallet,
     label: "Caja",
@@ -212,8 +166,7 @@ const menuItemsAdmin = [
     ],
   },
 
-  // Configuración
-  // Ventas Eliminaciones y Plantillas de Créditos
+  // Gestión de Ventas y Créditos
   {
     icon: ClipboardPen,
     label: "Gestión de Ventas",
@@ -223,27 +176,17 @@ const menuItemsAdmin = [
         label: "Ventas Eliminaciones",
         href: "/historial/ventas-eliminaciones",
       },
-      {
-        icon: FileText,
-        label: "Plantillas de Créditos",
-        href: "/plantillas-venta-cuotas",
-      },
     ],
   },
 
-  // Créditos
-  { icon: CreditCard, label: "Créditos", href: "/creditos" },
-  { icon: WrenchIcon, label: "Reparaciones", href: "/reparaciones" },
-
-  { icon: Target, label: "Metas", href: "/metas" },
-  { icon: Goal, label: "Mis Metas", href: "/mis-metas" },
-
-  { icon: Building2, label: "Resumen sucursales", href: "/sumary" },
-
-  { icon: FileSpreadsheet, label: "Reportes", href: "/reportes" },
-
-  { icon: Bolt, label: "Config", href: "/config/user" },
+  // Configuración
+  {
+    icon: Bolt,
+    label: "Config",
+    href: "/config/user",
+  },
 ];
+
 //RUTAS CRM
 const routesCrm_Admin = [
   { icon: Home, label: "Inicio", href: "/crm" },
@@ -279,6 +222,9 @@ const routesCrm_Admin = [
       },
     ],
   },
+
+  // { icon: Users, label: "Detalle del Cliente", href: "/crm/cliente-detalle" },
+
   // SERVICIOS Y GESTIÓN DE SERVICIOS
   {
     icon: Waypoints,
@@ -302,11 +248,6 @@ const routesCrm_Admin = [
     label: "Facturación por Zona",
     href: "/crm-facturacion-zona",
   },
-  {
-    icon: MapPin,
-    label: "Sectores",
-    href: "/crm-sectores",
-  },
 
   {
     icon: MapIcon,
@@ -321,7 +262,7 @@ const routesCrm_Admin = [
   },
   { icon: Building, label: "Empresa", href: "/crm/empresa" },
 ];
-//rutas para otro rol del
+
 const routesCrm_Otro = [
   { icon: Home, label: "Inicio", href: "/crm" },
 
@@ -357,6 +298,8 @@ const routesCrm_Otro = [
     ],
   },
 
+  // { icon: Users, label: "Detalle del Cliente", href: "/crm/cliente-detalle" },
+
   // SERVICIOS Y GESTIÓN DE SERVICIOS
   {
     icon: Waypoints,
@@ -379,11 +322,6 @@ const routesCrm_Otro = [
     icon: MapPinned,
     label: "Facturación por Zona",
     href: "/crm-facturacion-zona",
-  },
-  {
-    icon: MapPin,
-    label: "Sectores",
-    href: "/crm-sectores",
   },
 
   {

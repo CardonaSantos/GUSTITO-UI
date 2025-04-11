@@ -31,7 +31,6 @@ import ReactSelectComponent from "react-select";
 import { FacturacionZona } from "../CrmFacturacion/FacturacionZonaTypes";
 
 import { useDeferredValue } from "react";
-import { Label } from "@/components/ui/label";
 
 dayjs.extend(utc);
 dayjs.extend(localizedFormat);
@@ -82,16 +81,6 @@ interface OptionSelect {
   label: string;
 }
 
-interface Departamentos {
-  id: number;
-  nombre: string;
-}
-
-interface Municipios {
-  id: number;
-  nombre: string;
-}
-
 export default function ClientesTable() {
   const [filter, setFilter] = useState("");
   const filtered2 = useDeferredValue(filter);
@@ -99,98 +88,6 @@ export default function ClientesTable() {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
   const [sorting, setSorting] = useState<any>([]);
   const [clientes, setClientes] = useState<ClienteDto[]>([]);
-
-  const [departamentos, setDepartamentos] = useState<Departamentos[]>([]);
-  const [municipios, setMunicipios] = useState<Municipios[]>([]);
-
-  const [depaSelected, setDepaSelected] = useState<string | null>("8");
-  const [muniSelected, setMuniSelected] = useState<string | null>(null);
-
-  const handleSelectDepartamento = (selectedOption: OptionSelected | null) => {
-    setDepaSelected(selectedOption ? selectedOption.value : null);
-  };
-
-  // Manejar el cambio en el select de municipio
-  const handleSelectMunicipio = (selectedOption: OptionSelected | null) => {
-    setMuniSelected(selectedOption ? selectedOption.value : null);
-  };
-
-  // Cambiar 'optionsDepartamentos' para mapear los departamentos a 'string' para 'value'
-  const optionsDepartamentos: OptionSelected[] = departamentos.map((depa) => ({
-    value: depa.id.toString(), // Asegúrate de convertir el 'id' a 'string'
-    label: depa.nombre,
-  }));
-
-  const optionsMunis: OptionSelected[] = municipios.map((muni) => ({
-    value: muni.id.toString(),
-    label: muni.nombre,
-  }));
-
-  const getDepartamentos = async () => {
-    try {
-      const response = await axios.get(
-        `${VITE_CRM_API_URL}/location/get-all-departamentos`
-      );
-
-      if (response.status === 200) {
-        setDepartamentos(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const getMunicipios = async () => {
-    try {
-      const response = await axios.get(
-        `${VITE_CRM_API_URL}/location/get-municipio/${Number(depaSelected)}`
-      );
-
-      if (response.status === 200) {
-        setMunicipios(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-  const [sectores, setSectores] = useState<Sector[]>([]);
-  const [sectorSelected, setSectorSelected] = useState<string | null>(null);
-
-  interface Sector {
-    id: number;
-    nombre: string;
-    clientesCount: number;
-  }
-
-  const getSectores = async () => {
-    try {
-      const response = await axios.get(
-        `${VITE_CRM_API_URL}/sector/sectores-to-select`
-      );
-
-      if (response.status === 200) {
-        setSectores(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  useEffect(() => {
-    getFacturacionZona();
-    getDepartamentos();
-    getSectores();
-  }, []);
-
-  // Obtener municipios cuando depaSelected cambia
-  useEffect(() => {
-    if (depaSelected) {
-      getMunicipios();
-    } else {
-      setMunicipios([]);
-      setMuniSelected(null);
-    }
-  }, [depaSelected]);
 
   const [zonasFacturacion, setZonasFacturacion] = useState<FacturacionZona[]>(
     []
@@ -230,15 +127,6 @@ export default function ClientesTable() {
       value: zona.id.toString(),
       label: `${zona.nombre} Clientes: (${zona.clientesCount})`,
     }));
-
-  const optionsSectores: OptionSelected[] = sectores.map((sector) => ({
-    value: sector.id.toString(),
-    label: `${sector.nombre}  Clientes: (${sector.clientesCount})`,
-  }));
-
-  const handleSelectSector = (selectedOption: OptionSelected | null) => {
-    setSectorSelected(selectedOption ? selectedOption.value : null);
-  };
 
   const handleSelectZonaFacturacion = (
     selectedOption: OptionSelected | null
@@ -293,47 +181,44 @@ export default function ClientesTable() {
       setSorting([{ id: columnId, desc: direction === "desc" }]);
     }
   };
-  console.log("Cliente son: ", clientes);
-  console.log("El depa seleccionado es: ", depaSelected);
-  console.log("El muniSelected seleccionado es: ", muniSelected);
+
+  const filteredClientes = useMemo(() => {
+    // Convertir el filtro a minúsculas y quitar espacios
+    const search = filtered2.toLowerCase().trim();
+
+    return clientes.filter((cliente) => {
+      const matchesZona = zonasFacturacionSelected
+        ? cliente.facturacionZonaId === Number(zonasFacturacionSelected)
+        : true;
+
+      const fullName = `${cliente.nombreCompleto}`.toLowerCase();
+
+      const telefono = cliente.telefono?.toLowerCase() || "";
+      const ip = cliente.direccionIp?.toLowerCase() || "";
+
+      const matchesSearch =
+        search === "" ||
+        fullName.includes(search) ||
+        telefono.includes(search) ||
+        ip.includes(search);
+
+      return matchesZona && matchesSearch;
+    });
+  }, [clientes, zonasFacturacionSelected, filtered2]);
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [zonasFacturacionSelected]); // Resetear a página 1 cuando el filtro cambie
 
   const filteredClientesZona = useMemo(() => {
-    return clientes.filter((cliente) => {
-      const matchesMunicipio = muniSelected
-        ? cliente.municipioId === Number(muniSelected)
-        : true;
-
-      const matchesDepartamento = depaSelected
-        ? cliente.departamentoId === Number(depaSelected)
-        : true;
-
-      const matchesPorZonas = zonasFacturacionSelected
+    return clientes.filter((cliente) =>
+      zonasFacturacionSelected
         ? cliente.facturacionZonaId === Number(zonasFacturacionSelected)
-        : true;
+        : true
+    );
+  }, [clientes, zonasFacturacionSelected]);
 
-      const matchesPorSector = sectorSelected
-        ? cliente?.sectorId === Number(sectorSelected)
-        : true;
-
-      return (
-        matchesMunicipio &&
-        matchesDepartamento &&
-        matchesPorZonas &&
-        matchesPorSector
-      );
-    });
-  }, [
-    clientes,
-    zonasFacturacionSelected,
-    muniSelected,
-    depaSelected,
-    sectorSelected,
-  ]);
-
+  // **Configuración de la tabla**
   // **Configuración de la tabla**
   const table = useReactTable({
     data: filteredClientesZona, // Cambiar a filteredClientesZona
@@ -368,6 +253,8 @@ export default function ClientesTable() {
     },
   });
 
+  console.log("Los clientes filtrados son: ", filteredClientes);
+
   return (
     <Card className="max-w-full shadow-lg">
       <CardContent>
@@ -384,165 +271,71 @@ export default function ClientesTable() {
         />
 
         {/* **Controles: Selector de Orden y Cantidad de Filas** */}
-        <div className="mb-4">
-          {/* **Controles de filtrado y ordenamiento** */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-            {/* Departamento */}
-            <div className="space-y-1">
-              <Label htmlFor="departamentoId-all">Departamento</Label>
-              <ReactSelectComponent
-                placeholder="Seleccione un departamento"
-                isClearable
-                options={optionsDepartamentos}
-                value={
-                  depaSelected
-                    ? {
-                        value: depaSelected,
-                        label:
-                          departamentos.find(
-                            (depa) => depa.id.toString() === depaSelected
-                          )?.nombre || "",
-                      }
-                    : null
-                }
-                onChange={handleSelectDepartamento}
-                className="text-xs text-black"
-              />
-            </div>
+        <div className="flex justify-end mb-3 gap-2">
+          <ReactSelectComponent
+            isClearable
+            placeholder="Ordenar por facturación zona"
+            className="w-72 text-black text-sm"
+            options={optionsZonasFacturacion}
+            onChange={handleSelectZonaFacturacion}
+            value={
+              zonasFacturacionSelected
+                ? {
+                    value: zonasFacturacionSelected,
+                    label:
+                      zonasFacturacion.find(
+                        (s) => s.id.toString() === zonasFacturacionSelected
+                      )?.nombre || "",
+                  }
+                : null
+            }
+          />
 
-            {/* Municipio */}
-            <div className="space-y-1">
-              <Label htmlFor="municipioId-all">Municipio</Label>
-              <ReactSelectComponent
-                placeholder="Seleccione un municipio"
-                isClearable
-                options={optionsMunis}
-                onChange={handleSelectMunicipio}
-                value={
-                  muniSelected
-                    ? {
-                        value: muniSelected,
-                        label:
-                          municipios.find(
-                            (muni) => muni.id.toString() == muniSelected
-                          )?.nombre || "",
-                      }
-                    : null
-                }
-                className="text-xs text-black"
-              />
-            </div>
-
-            {/* Sector */}
-            <div className="space-y-1">
-              <Label htmlFor="municipioId-all">Sector</Label>
-              <ReactSelectComponent
-                placeholder="Seleccione un sector"
-                isClearable
-                options={optionsSectores}
-                onChange={handleSelectSector}
-                value={
-                  sectorSelected
-                    ? {
-                        value: sectorSelected,
-                        label:
-                          sectores.find(
-                            (muni) => muni.id.toString() == sectorSelected
-                          )?.nombre || "",
-                      }
-                    : null
-                }
-                className="text-xs text-black"
-              />
-            </div>
-
-            {/* Zona de Facturación */}
-            <div className="space-y-1">
-              <Label>Zona de Facturación</Label>
-              <ReactSelectComponent
-                isClearable
-                placeholder="Ordenar por facturación zona"
-                className="text-xs text-black"
-                options={optionsZonasFacturacion}
-                onChange={handleSelectZonaFacturacion}
-                value={
-                  zonasFacturacionSelected
-                    ? {
-                        value: zonasFacturacionSelected,
-                        label:
-                          zonasFacturacion.find(
-                            (s) => s.id.toString() === zonasFacturacionSelected
-                          )?.nombre || "",
-                      }
-                    : null
-                }
-              />
-            </div>
-
-            {/* Ordenamiento */}
-            <div className="space-y-1">
-              <Label>Ordenar por</Label>
-              <ReactSelectComponent
-                className="text-xs text-black"
-                options={sortOptions}
-                isClearable={true}
-                onChange={handleSortChange}
-                placeholder="Ordenar por..."
-              />
-            </div>
-
-            {/* Items por página */}
-            <div className="space-y-1">
-              <Label>Items por página</Label>
-              <Select
-                onValueChange={(value) =>
-                  setPagination({ ...pagination, pageSize: Number(value) })
-                }
-                defaultValue={String(pagination.pageSize)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Items por página" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          {/* Sorting select */}
+          <ReactSelectComponent
+            className="w-60 text-black text-sm"
+            options={sortOptions}
+            isClearable={true}
+            onChange={handleSortChange}
+            placeholder="Ordenar por..."
+          />
+          <Select
+            onValueChange={(value) =>
+              setPagination({ ...pagination, pageSize: Number(value) })
+            }
+            defaultValue={String(pagination.pageSize)}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Items por página" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* **Tabla** */}
-        <div className="overflow-x-auto rounded-md border border-gray-200 shadow-sm dark:border-gray-800 dark:bg-transparent dark:shadow-gray-900/30">
-          <table className="w-full border-collapse text-xs">
-            <thead className="bg-gray-50 dark:bg-transparent dark:border-b dark:border-gray-800">
+        <div className="overflow-x-auto">
+          <table className="w-full border border-gray-300 text-xs">
+            <thead className="bg-gray-100 dark:bg-gray-800">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
-                  ID
-                </th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
+                <th className="px-2 py-1 border font-semibold">ID</th>
+                <th className="px-2 py-1 border font-semibold">
                   Nombre Completo
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
-                  Teléfono
-                </th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
-                  IP
-                </th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
-                  Servicios
-                </th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
+                <th className="px-2 py-1 border font-semibold">Teléfono</th>
+                <th className="px-2 py-1 border font-semibold">IP</th>
+                <th className="px-2 py-1 border font-semibold">Servicios</th>
+                <th className="px-2 py-1 border font-semibold">
                   Zona de Facturación
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
-                  Acciones
-                </th>
+                <th className="px-2 py-1 border font-semibold">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+            <tbody>
               {table.getRowModel().rows.map((row) => (
                 <motion.tr
                   key={row.id}
@@ -553,45 +346,37 @@ export default function ClientesTable() {
                     stiffness: 120,
                     damping: 22,
                   }}
-                  className="bg-white hover:bg-gray-50 dark:bg-transparent dark:hover:bg-gray-900/20 dark:text-gray-100"
+                  className="hover:bg-gray-200 dark:hover:bg-gray-700 border-b border-gray-300"
                 >
-                  <td className="px-3 py-2 text-center font-medium">
-                    {row.original.id}
-                  </td>
+                  <td className="px-2 py-1 text-center">{row.original.id}</td>
                   <Link
                     to={`/crm/cliente/${row.original.id}`}
                     className="contents"
                   >
-                    <td className="px-3 py-2 truncate max-w-[120px] hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline">
+                    <td className="px-2 py-1 truncate max-w-[120px] hover:underline">
                       {`${row.original.nombreCompleto}`.trim()}
                     </td>
                   </Link>
-                  <td className="px-3 py-2 truncate max-w-[90px] whitespace-nowrap text-gray-600 dark:text-gray-400">
+                  <td className="px-2 py-1 truncate max-w-[90px] whitespace-nowrap">
                     {row.original.telefono}
                   </td>
-                  <td className="px-3 py-2 truncate max-w-[150px] whitespace-nowrap text-gray-600 dark:text-gray-400">
+                  <td className="px-2 py-1 truncate max-w-[150px] whitespace-nowrap">
                     {row.original.direccionIp}
                   </td>
-                  <td className="px-3 py-2 truncate max-w-[120px] whitespace-nowrap text-gray-600 dark:text-gray-400">
+                  <td className="px-2 py-1 truncate max-w-[120px] whitespace-nowrap">
                     {row.original.servicios
                       .map((s) => s.nombreServicio)
                       .join(", ")}
                   </td>
-                  <td className="px-3 py-2 truncate max-w-[100px] whitespace-nowrap text-gray-600 dark:text-gray-400">
+                  <td className="px-2 py-1 truncate max-w-[100px] whitespace-nowrap">
                     {row.original.facturacionZona}
                   </td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-center">
-                      <Link to={`/crm/cliente-edicion/${row.original.id}`}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800/30 dark:text-gray-300"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </div>
+                  <td className="px-2 py-1 flex justify-center items-center">
+                    <Link to={`/crm/cliente-edicion/${row.original.id}`}>
+                      <Button variant="outline" size="icon">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </Link>
                   </td>
                 </motion.tr>
               ))}
@@ -600,27 +385,23 @@ export default function ClientesTable() {
         </div>
 
         {/* **Controles de Paginación** */}
-        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 text-xs dark:border-gray-800 dark:bg-transparent dark:text-gray-300 mt-0 rounded-b-md">
+        <div className="flex justify-between items-center mt-3">
           <Button
             variant="outline"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="h-8 rounded-md border-gray-300 px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800/30"
           >
             Anterior
           </Button>
 
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Página{" "}
-            <span className="font-medium">{pagination.pageIndex + 1}</span> de{" "}
-            <span className="font-medium">{table.getPageCount()}</span>
+          <span>
+            Página {pagination.pageIndex + 1} de {table.getPageCount()}
           </span>
 
           <Button
             variant="outline"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="h-8 rounded-md border-gray-300 px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800/30"
           >
             Siguiente
           </Button>
