@@ -515,7 +515,7 @@ export default function PuntoVenta() {
     );
 
     return matchesFiltered;
-  }, [filterEmpaques]);
+  }, [filterEmpaques, empaques]);
 
   return (
     <div className="container  ">

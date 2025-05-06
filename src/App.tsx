@@ -20,7 +20,7 @@ import { ProtectedRoute } from "./components/Auth/ProtectedRoute";
 import NotFoundPage from "./Pages/NotFount/NotFoundPage";
 import AgregarProveedor from "./Pages/Provider/AgregarProveedor";
 import CreateCategory from "./Pages/Category/CreateCategory";
-import CreateSucursal from "./Pages/Sucursal/CreateSucursal";
+// import CreateSucursal from "./Pages/Sucursal/CreateSucursal";
 import ProductEditForm from "./Pages/Edit/EditProduct";
 import Sucursales from "./Pages/Sucursal/Sucursales";
 import TransferenciaProductos from "./Pages/Transferencia/TransferenciaProductos";
@@ -165,14 +165,14 @@ function App() {
               }
             />
 
-            <Route
+            {/* <Route
               path="/add-sucursal"
               element={
                 // <ProtectRSuperAdmin>
                 <CreateSucursal />
                 // </ProtectRSuperAdmin>
               }
-            />
+            /> */}
 
             <Route
               path="/inventario"

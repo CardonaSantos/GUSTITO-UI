@@ -1,93 +1,36 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ShoppingCart,
-  History,
-  // Package,
-  DollarSign,
-  Trash2,
-  Users,
-  Calendar,
-} from "lucide-react";
-import { Link } from "react-router-dom";
-export default function DashboardEmpleado() {
-  const menuItems = [
-    {
-      title: "Punto de Venta",
-      description: "Hacer y registrar ventas",
-      icon: ShoppingCart,
-      route: "/punto-venta",
-    },
-    {
-      title: "Historial de Ventas",
-      description: "Ver registro de ventas pasadas",
-      icon: History,
-      route: "/historial/ventas",
-    },
+import { EmpaqueConStock } from "./EmpaquesType";
+import { useEffect, useState } from "react";
+import axios from "axios";
+import { toast } from "sonner";
+import EmpaquesStock from "./EmpaquesStock";
+const API_URL = import.meta.env.VITE_API_URL;
 
-    {
-      title: "Historial de Cambios de Precio",
-      description: "Ver cambios en precios",
-      icon: DollarSign,
-      route: "/historial-cambios-precio",
-    },
-    {
-      title: "Stock Eliminaciones",
-      description: "Ver productos eliminados del stock",
-      icon: Trash2,
-      route: "/stock-eliminaciones",
-    },
-    {
-      title: "Ventas Eliminaciones",
-      description: "Ver ventas eliminadas",
-      icon: Trash2,
-      route: "/historial/ventas-eliminaciones",
-    },
-    {
-      title: "Clientes",
-      description: "Gestionar información de clientes",
-      icon: Users,
-      route: "/clientes-manage",
-    },
-    {
-      title: "Vencimientos",
-      description: "Ver productos próximos a vencer",
-      icon: Calendar,
-      route: "/vencimientos",
-    },
-  ];
+export default function DashboardEmpleado() {
+  const [empaques, setEmpaques] = useState<EmpaqueConStock[]>([]);
+
+  const getEmpaques = async () => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/empaque/find-empaques-stock`
+      );
+      if (response.status === 200) {
+        setEmpaques(response.data);
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error("Error al conseguir solicitudes");
+    }
+  };
+
+  useEffect(() => {
+    getEmpaques();
+  }, []);
 
   return (
     <div className="container mx-auto p-1">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="text-center">
-            <h1 className="text-3xl font-bold">Dashboard </h1>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {menuItems.map((item, index) => (
-              <Link to={item.route} key={index} className="no-underline">
-                <Card className="h-full hover:shadow-lg transition-shadow duration-200">
-                  <CardContent className="flex flex-col items-center justify-center p-6">
-                    <item.icon className="w-12 h-12 mb-4 text-primary" />
-                    <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
-                    <CardDescription className="text-center">
-                      {item.description}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <h1 className="text-3xl font-bold text-center mb-2">Dashboard </h1>
+
+      <EmpaquesStock empaques={empaques} />
     </div>
   );
 }

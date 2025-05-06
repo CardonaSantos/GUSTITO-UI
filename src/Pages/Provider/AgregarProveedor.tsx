@@ -430,35 +430,61 @@ export default function AgregarProveedor() {
                             <ScrollArea className="max-h-[60vh] pr-4">
                               <Card className="mt-4 border-none shadow-none">
                                 <CardHeader>
-                                  <CardTitle className="text-xl font-semibold text-primary">
+                                  <CardTitle className="text-xl font-semibold text-primary dark:text-white">
                                     Información General
                                   </CardTitle>
                                 </CardHeader>
                                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <InfoItem
-                                    icon={<Mail className="h-5 w-5" />}
+                                    icon={
+                                      <Mail
+                                        className="h-5 w-5
+                                      dark:text-white
+                                      "
+                                      />
+                                    }
                                     label="Correo"
                                     value={providerView.correo ?? undefined}
                                   />
                                   <InfoItem
-                                    icon={<Phone className="h-5 w-5" />}
+                                    icon={
+                                      <Phone
+                                        className="h-5 w-5
+                                      dark:text-white
+                                      "
+                                      />
+                                    }
                                     label="Teléfono"
                                     value={providerView.telefono ?? undefined}
                                   />
                                   <InfoItem
-                                    icon={<MapPin className="h-5 w-5" />}
+                                    icon={
+                                      <MapPin
+                                        className="h-5 w-5
+                                      dark:text-white
+                                      "
+                                      />
+                                    }
                                     label="Dirección"
                                     value={providerView.direccion ?? undefined}
                                   />
                                   <InfoItem
-                                    icon={<Building className="h-5 w-5" />}
+                                    icon={
+                                      <Building
+                                        className="h-5 w-5
+                                      dark:text-white
+                                      "
+                                      />
+                                    }
                                     label="Razón Social"
                                     value={
                                       providerView.razonSocial ?? undefined
                                     }
                                   />
                                   <InfoItem
-                                    icon={<FileText className="h-5 w-5" />}
+                                    icon={
+                                      <FileText className="h-5 w-5 dark:text-white" />
+                                    }
                                     label="RFC"
                                     value={providerView.rfc ?? undefined}
                                   />

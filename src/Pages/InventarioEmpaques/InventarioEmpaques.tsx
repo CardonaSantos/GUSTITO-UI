@@ -158,9 +158,11 @@ export default function InventarioEmpaques() {
   );
 
   const totalInventoryCount = filteredEmpaques.reduce((sum, empaque) => {
-    const stockQuantity =
-      empaque.stock.length > 0 ? empaque.stock[0].cantidad : 0;
-    return sum + stockQuantity;
+    const totalStock = empaque.stock.reduce(
+      (acc, s) => acc + (s.cantidad || 0),
+      0
+    );
+    return sum + totalStock;
   }, 0);
 
   const [productCreate, setProductCreate] = useState<ProductCreate>({
@@ -323,7 +325,7 @@ export default function InventarioEmpaques() {
     if (!selectedEmpaque) return;
     try {
       const response = await axios.patch(
-        `${API_URL}/empaques/${selectedEmpaque.id}`,
+        `${API_URL}/empaque/${selectedEmpaque.id}`,
         editData
       );
       if (response.status === 200) {
@@ -481,7 +483,7 @@ export default function InventarioEmpaques() {
                     {/* Input for Price 1 */}
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="precioVenta" className="text-right">
-                        Precio Venta 1
+                        Precio Venta
                       </Label>
                       <div className="col-span-3 relative">
                         <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
