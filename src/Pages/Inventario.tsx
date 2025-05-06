@@ -338,10 +338,10 @@ export default function Inventario() {
 
   return (
     <div className="container mx-auto p-4 shadow-xl">
-      <h1 className="text-2xl font-bold mb-4">Administrador de inventario</h1>
+      <h1 className="text-lg font-bold mb-4">Administrador de inventario</h1>
       <div className="bg-muted p-4 rounded-lg mb-4 ">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-          <div className="text-xl font-semibold">
+          <div className="text-lg font-semibold">
             Inventario Total: {totalInventoryCount} items
           </div>
           <div className="flex space-x-2">

@@ -82,6 +82,8 @@ import CrmRuta from "./Crm/CrmRutas/CrmRuta";
 import CrmPdfPago from "./Crm/CrmPdfPago/CrmPdfPago";
 import RutaCobro from "./Crm/CrmRutas/CrmRutasCobro/RutaCobro";
 import EditCustomers from "./Crm/CrmCustomerEdition/CrmCustomerEdition";
+import InventarioEmpaques from "./Pages/InventarioEmpaques/InventarioEmpaques";
+import StockEditEmpaque from "./Pages/InventarioEmpaques/StockEditEmpaque";
 // import { RedirectToDashboard } from "./components/Auth/RedirectToDashboard";
 
 function App() {
@@ -294,6 +296,15 @@ function App() {
               element={
                 <ProtectRouteAdmin>
                   <StockEdicion />
+                </ProtectRouteAdmin>
+              }
+            />
+
+            <Route
+              path="/stock-empaque-edicion/:id"
+              element={
+                <ProtectRouteAdmin>
+                  <StockEditEmpaque />
                 </ProtectRouteAdmin>
               }
             />
@@ -529,6 +540,15 @@ function App() {
                 <ProtectRouteAdmin>
                   <MyGoals />
                 </ProtectRouteAdmin>
+              }
+            />
+
+            <Route
+              path="/inventario-empaques"
+              element={
+                <ProtectRouteCrmUser>
+                  <InventarioEmpaques />
+                </ProtectRouteCrmUser>
               }
             />
 

@@ -1,6 +1,5 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
-//================================================================>
 import { useState, useEffect } from "react";
 import { X, Bell, User, LogOut, AtSign } from "lucide-react";
 import {
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { ModeToggle } from "../mode-toggle";
-import sandyLogo from "@/assets/sandy2.png";
+import sandyLogo from "@/assets/GUSTITOSPNG.png";
 
 import {
   DropdownMenu,
@@ -253,7 +252,7 @@ export default function Layout2({ children }: LayoutProps) {
               <div className="flex items-center space-x-2">
                 <Link to={isCrmLocation ? "/crm" : "/"}>
                   <img
-                    className={`h-10 w-16 rounded-sm
+                    className={`h-28 w-32 
                     `}
                     src={sandyLogo}
                     alt="Logo"
@@ -265,7 +264,6 @@ export default function Layout2({ children }: LayoutProps) {
                   </p>
                 </Link>
               </div>
-              {/* vitaFertil-universal-forma:pachon, normal */}
               {/* Sección derecha: Toggle de modo, notificaciones y menú de usuario */}
               <div className="flex items-center space-x-2">
                 <div className=""></div>
@@ -355,8 +353,8 @@ export default function Layout2({ children }: LayoutProps) {
                       >
                         <User className="h-5 w-5" />
                         <span className="sr-only">User menu</span>
-                        <Avatar className="bg-[#29daa5] border-2 border-transparent dark:border-white dark:bg-transparent">
-                          <AvatarFallback className="bg-[#2be6ae] text-white font-bold dark:bg-transparent dark:text-[#2be6ae]">
+                        <Avatar className="bg-[#e2b7b8] border-2 border-transparent dark:border-white dark:bg-transparent">
+                          <AvatarFallback className="bg-[#823d81] text-white font-bold dark:bg-transparent dark:text-[#e2b7b8]">
                             {nombreUsuario?.slice(0, 2).toUpperCase() || "??"}
                           </AvatarFallback>
                         </Avatar>

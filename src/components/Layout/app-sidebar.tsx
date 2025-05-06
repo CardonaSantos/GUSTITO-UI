@@ -20,6 +20,7 @@ import {
   MapIcon,
   MapPinned,
   MapPin,
+  SendToBack,
 } from "lucide-react";
 
 import {
@@ -121,6 +122,12 @@ const menuItemsAdmin = [
     label: "Inventario y Stock",
     submenu: [
       { icon: PackageOpen, label: "Inventario", href: "/inventario" },
+      {
+        icon: Package,
+        label: "Inventario Empaques",
+        href: "/inventario-empaques",
+      },
+
       { icon: Box, label: "Añadir Stock", href: "/adicion-stock" },
       {
         icon: NotepadText,
@@ -180,6 +187,19 @@ const menuItemsAdmin = [
   },
 
   // Configuración
+
+  {
+    icon: SendToBack,
+    label: "Transferencia",
+    href: "/transferencia",
+  },
+
+  {
+    icon: Building,
+    label: "Sucursal",
+    href: "/sucursal",
+  },
+
   {
     icon: Bolt,
     label: "Config",

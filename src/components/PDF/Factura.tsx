@@ -1,4 +1,4 @@
-import React, { Fragment } from "react";
+import React from "react";
 import {
   Image,
   Text,
@@ -7,289 +7,215 @@ import {
   Document,
   StyleSheet,
 } from "@react-pdf/renderer";
-import logo from "../../assets/sandy2.png";
+import logo from "../../assets/GUSTITOSPNG.png";
 import { VentaHistorialPDF } from "@/Types/PDF/VentaHistorialPDF";
 import dayjs from "dayjs";
-import "dayjs/locale/es"; // Importa el idioma español
+import "dayjs/locale/es";
 import localizedFormat from "dayjs/plugin/localizedFormat";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 
 dayjs.extend(localizedFormat);
 dayjs.extend(customParseFormat);
 dayjs.locale("es");
-const formatearFecha = (fecha: string) => {
-  let nueva_fecha = dayjs(fecha).format("DD MMMM YYYY, hh:mm:ss A");
-  return nueva_fecha;
-};
+
+const formatearFecha = (fecha: string) =>
+  dayjs(fecha).format("DD MMMM YYYY, hh:mm:ss A");
 
 interface VentaProps {
   venta: VentaHistorialPDF | undefined;
 }
 
 const Factura: React.FC<VentaProps> = ({ venta }) => {
+  const colors = {
+    primary: "#7b2c7d",
+    secondary: "#e2b7b8",
+    tableHeader: "#fbeffb",
+    border: "#dddddd",
+    background: "#ffffff",
+    text: "#333333",
+    lightText: "#666666",
+  };
+
   const styles = StyleSheet.create({
     page: {
-      fontSize: 11,
-      paddingTop: 10,
-      paddingLeft: 40,
-      paddingRight: 40,
-      lineHeight: 1.5,
-      flexDirection: "column",
+      fontSize: 10,
+      padding: 40,
+      backgroundColor: colors.background,
+      color: colors.text,
+      fontFamily: "Helvetica",
     },
-
-    spaceBetween: {
-      flex: 1,
+    header: {
       flexDirection: "row",
-      alignItems: "center",
       justifyContent: "space-between",
-      color: "#3E3E3E",
+      marginBottom: 20,
+      borderBottom: `2 solid ${colors.secondary}`,
+      paddingBottom: 10,
     },
-
-    titleContainer: { flexDirection: "row", marginTop: 24 },
-
-    logo: { width: 120, height: 60 },
-
-    reportTitle: { fontSize: 16, textAlign: "center" },
-
-    addressTitle: { fontSize: 11, fontWeight: "bold" },
-
-    invoice: { fontWeight: "bold", fontSize: 13 },
-
-    invoiceNumber: { fontSize: 11, fontWeight: "bold" },
-
-    address: { fontWeight: 400, fontSize: 10 },
-
-    theader: {
-      marginTop: 20,
+    logo: { width: 190, height: 90, objectFit: "contain" },
+    companyInfo: { alignItems: "flex-end", flexDirection: "column" },
+    companyDetail: { fontSize: 8, color: colors.lightText, marginBottom: 2 },
+    invoiceInfoContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 20,
+    },
+    box: {
+      backgroundColor: colors.tableHeader,
+      padding: 10,
+      borderRadius: 5,
+      borderLeft: `4 solid ${colors.primary}`,
+      width: "48%",
+    },
+    clientBox: {
+      backgroundColor: colors.tableHeader,
+      padding: 10,
+      borderRadius: 5,
+      borderLeft: `4 solid ${colors.secondary}`,
+      width: "48%",
+    },
+    table: { marginTop: 20 },
+    tableHeader: {
+      flexDirection: "row",
+      backgroundColor: colors.tableHeader,
+      fontWeight: "bold",
+      paddingVertical: 4,
+    },
+    tableCell: { padding: 5, fontSize: 8 },
+    productNameCell: { width: "40%" },
+    priceCell: { width: "20%", textAlign: "right" },
+    quantityCell: { width: "15%", textAlign: "center" },
+    subtotalCell: { width: "25%", textAlign: "right" },
+    totalRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      marginTop: 10,
+    },
+    totalLabel: {
+      padding: 5,
       fontSize: 10,
       fontWeight: "bold",
-      paddingTop: 4,
-      paddingLeft: 7,
-      flex: 1,
-      height: 20,
-      backgroundColor: "#DEDEDE",
-      borderColor: "whitesmoke",
-      borderRightWidth: 1,
-      borderBottomWidth: 1,
+      color: colors.primary,
     },
-
-    theader2: { flex: 2, borderRightWidth: 0, borderBottomWidth: 1 },
-
-    tbody: {
+    totalValue: {
+      padding: 5,
       fontSize: 9,
-      paddingTop: 4,
-      paddingLeft: 7,
-      flex: 1,
-      borderColor: "whitesmoke",
-      borderRightWidth: 1,
-      borderBottomWidth: 1,
+      fontWeight: "bold",
+      color: colors.primary,
     },
-
-    total: {
-      fontSize: 9,
-      paddingTop: 4,
-      paddingLeft: 7,
-      flex: 1.5,
-      borderColor: "whitesmoke",
-      borderBottomWidth: 1,
+    thankYouText: {
+      fontSize: 10,
+      fontWeight: "bold",
+      color: colors.primary,
+      textAlign: "center",
+      marginTop: 20,
     },
-
-    tbody2: { flex: 2, borderRightWidth: 1 },
-    //TEXTO DE DESCRIPCION
-    textDesc: {
-      fontSize: "8px",
-      color: "#6c757d",
-      fontStyle: "italic",
-      lineHeight: "1.2",
-      marginTop: "2px", // Separación del nombre del producto
-    },
+    footerText: { fontSize: 8, color: colors.lightText, textAlign: "center" },
   });
 
-  const InvoiceTitle = () => (
-    <View style={styles.titleContainer}>
-      <View style={styles.spaceBetween}>
-        <Image style={styles.logo} src={logo} />
-      </View>
-    </View>
-  );
-
-  const Address = () => (
-    <View style={styles.titleContainer}>
-      <View style={styles.spaceBetween}>
-        <View>
-          <Text style={styles.invoice}>Pastelería Sandy</Text>
-          <Text style={styles.invoiceNumber}>
-            Factura No. {venta?.id ? venta.id : "No disponible"}
-          </Text>
-        </View>
-        <View>
-          <Text style={styles.addressTitle}>
-            Sucursal:{" "}
-            {venta?.sucursal?.nombre ?? venta?.sucursal.nombre ?? null}
-          </Text>
-
-          <Text style={styles.addressTitle}>
-            Direccion:{" "}
-            {venta?.sucursal?.direccion ?? venta?.sucursal.direccion ?? null}
-          </Text>
-
-          <Text style={styles.addressTitle}>
-            Teléfono:{" "}
-            {venta?.sucursal.telefono ?? venta?.sucursal.telefono ?? null}
-          </Text>
-          <Text style={styles.addressTitle}>
-            PBX: {venta?.sucursal?.pbx ?? venta?.sucursal.pbx ?? "N/A"}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  const UserAddress = () => (
-    <View style={styles.titleContainer}>
-      <View style={styles.spaceBetween}>
-        <View style={{ maxWidth: 200 }}>
-          <Text style={styles.addressTitle}>Factura a</Text>
-          <Text style={styles.address}>
-            {venta?.cliente?.nombre || venta?.nombreClienteFinal || "CF"}
-          </Text>
-
-          <Text style={styles.address}>
-            {venta?.cliente?.telefono ?? venta?.telefonoClienteFinal ?? null}
-          </Text>
-
-          <Text style={styles.address}>
-            {venta?.cliente?.direccion ?? venta?.direccionClienteFinal ?? null}
-          </Text>
-
-          <Text style={styles.address}>
-            Pago:{" "}
-            {venta?.metodoPago
-              ? venta.metodoPago.metodoPago
-              : "Sin método de pago"}
-          </Text>
-
-          {venta?.imei ? (
-            <Text style={styles.address}>
-              IMEI: {venta?.imei ? venta.imei : null}
-            </Text>
-          ) : null}
-        </View>
-        <Text style={styles.addressTitle}>
-          {venta?.fechaVenta
-            ? formatearFecha(venta.fechaVenta)
-            : "Fecha no disponible"}
-        </Text>
-      </View>
-    </View>
-  );
-  const TableHead = () => (
-    <View style={{ width: "100%", flexDirection: "row", marginTop: 10 }}>
-      <View style={[styles.theader, styles.theader2]}>
-        <Text>Productos</Text>
-      </View>
-      <View style={styles.theader}>
-        <Text>Precio</Text>
-      </View>
-      <View style={styles.theader}>
-        <Text>Cantidad</Text>
-      </View>
-      <View style={styles.theader}>
-        <Text>Sub total</Text>
-      </View>
-    </View>
-  );
-  const TableBody = () =>
-    venta?.productos?.length ? (
-      venta.productos.map((productoVenta) => (
-        <Fragment key={productoVenta.id}>
-          <View style={{ width: "100%", flexDirection: "row" }}>
-            <View style={[styles.tbody, styles.tbody2]}>
-              <Text>
-                {productoVenta?.producto?.nombre
-                  ? productoVenta.producto.nombre
-                  : "Producto no disponible"}
-              </Text>
-              <Text style={styles.textDesc}>
-                {productoVenta?.producto?.descripcion
-                  ? `${productoVenta.producto.descripcion}`
-                  : ""}
-              </Text>
-            </View>
-            <View style={styles.tbody}>
-              <Text>
-                {productoVenta?.precioVenta
-                  ? new Intl.NumberFormat("es-GT", {
-                      style: "currency",
-                      currency: "GTQ",
-                    }).format(productoVenta.precioVenta)
-                  : "No disponible"}
-              </Text>
-            </View>
-            <View style={styles.tbody}>
-              <Text>
-                {productoVenta?.cantidad ? productoVenta.cantidad : "N/A"}
-              </Text>
-            </View>
-            <View style={styles.tbody}>
-              <Text>
-                {productoVenta?.precioVenta && productoVenta.cantidad
-                  ? new Intl.NumberFormat("es-GT", {
-                      style: "currency",
-                      currency: "GTQ",
-                    }).format(
-                      productoVenta.precioVenta * productoVenta.cantidad
-                    )
-                  : "N/A"}
-              </Text>
-            </View>
-          </View>
-        </Fragment>
-      ))
-    ) : (
-      <Text>No hay productos disponibles</Text>
-    );
-
-  const TableTotal = () => (
-    <View style={{ width: "100%", flexDirection: "row" }}>
-      <View style={styles.total}>
-        <Text></Text>
-      </View>
-      <View style={styles.total}>
-        <Text> </Text>
-      </View>
-      <View style={styles.tbody}>
-        <Text>Total</Text>
-      </View>
-      <View style={styles.tbody}>
-        <Text>
-          {venta?.productos
-            ? new Intl.NumberFormat("es-GT", {
-                style: "currency",
-                currency: "GTQ",
-              }).format(
-                venta.productos.reduce(
-                  (sum, item) =>
-                    sum +
-                    (item?.precioVenta ? item.precioVenta * item.cantidad : 0),
-                  0
-                )
-              )
-            : "N/A"}
-        </Text>
-      </View>
-    </View>
-  );
+  if (!venta) return null;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <InvoiceTitle />
-        <Address />
-        <UserAddress />
-        <TableHead />
-        <TableBody />
-        <TableTotal />
+        <View style={styles.header}>
+          <Image style={styles.logo} src={logo} />
+          <View style={styles.companyInfo}>
+            <Text style={styles.companyDetail}>
+              {venta.sucursal?.direccion || "Dirección"}
+            </Text>
+            <Text style={styles.companyDetail}>
+              Tel: {venta.sucursal?.telefono || "Tel"} | PBX:{" "}
+              {venta.sucursal?.pbx || "N/A"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.invoiceInfoContainer}>
+          <View style={styles.box}>
+            <Text>Factura No.#{venta.id}</Text>
+            <Text>Fecha: {formatearFecha(venta.fechaVenta)}</Text>
+            <Text>Sucursal: {venta.sucursal?.nombre}</Text>
+            <Text>Método de pago: {venta.metodoPago?.metodoPago}</Text>
+          </View>
+          <View style={styles.clientBox}>
+            <Text>
+              Nombre:{" "}
+              {venta.cliente?.nombre || venta.nombreClienteFinal || "CF"}
+            </Text>
+            <Text>
+              Teléfono:{" "}
+              {venta.cliente?.telefono || venta.telefonoClienteFinal || "N/A"}
+            </Text>
+            <Text>
+              Dirección:{" "}
+              {venta.cliente?.direccion || venta.direccionClienteFinal || "N/A"}
+            </Text>
+            {venta.imei && <Text>IMEI: {venta.imei}</Text>}
+          </View>
+        </View>
+
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableCell, styles.productNameCell]}>
+              Producto
+            </Text>
+            <Text style={[styles.tableCell, styles.priceCell]}>Precio</Text>
+            <Text style={[styles.tableCell, styles.quantityCell]}>Cant.</Text>
+            <Text style={[styles.tableCell, styles.subtotalCell]}>
+              Subtotal
+            </Text>
+          </View>
+          {venta.productos?.length ? (
+            venta.productos.map((item, index) => (
+              <View key={index} style={{ flexDirection: "row" }}>
+                <Text style={[styles.tableCell, styles.productNameCell]}>
+                  {item.producto?.nombre}
+                </Text>
+                <Text style={[styles.tableCell, styles.priceCell]}>
+                  {new Intl.NumberFormat("es-GT", {
+                    style: "currency",
+                    currency: "GTQ",
+                  }).format(item.precioVenta)}
+                </Text>
+                <Text style={[styles.tableCell, styles.quantityCell]}>
+                  {item.cantidad}
+                </Text>
+                <Text style={[styles.tableCell, styles.subtotalCell]}>
+                  {new Intl.NumberFormat("es-GT", {
+                    style: "currency",
+                    currency: "GTQ",
+                  }).format(item.precioVenta * item.cantidad)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.tableCell}>No hay productos</Text>
+          )}
+        </View>
+
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total:</Text>
+          <Text style={styles.totalValue}>
+            {new Intl.NumberFormat("es-GT", {
+              style: "currency",
+              currency: "GTQ",
+            }).format(
+              venta.productos?.reduce(
+                (acc, item) => acc + item.precioVenta * item.cantidad,
+                0
+              ) || 0
+            )}
+          </Text>
+        </View>
+
+        <Text style={styles.thankYouText}>¡Gracias por su compra!</Text>
+        <Text style={styles.footerText}>
+          GUSTITO - Postres & Pasteles | Delicias hechas con amor
+        </Text>
+        <Text style={styles.footerText}>
+          Facebook: Gustito Postres y Pasteles |
+          Instagram:@gustito.postresypasteles
+        </Text>
       </Page>
     </Document>
   );

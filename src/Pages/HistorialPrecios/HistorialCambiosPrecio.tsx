@@ -124,7 +124,7 @@ export default function HistorialCambiosPrecio() {
       <ScrollArea className="h-[400px] w-full pr-4 [&>div]:!block">
         <div className="space-y-6">
           <div className="rounded-lg p-4 border border-border">
-            <h3 className="mb-3 flex items-center text-lg font-semibold text-primary/80 dark:text-primary/70">
+            <h3 className="mb-3 flex items-center text-lg font-semibold text-primary/80 dark:text-primary/70 dark:text-white">
               <Package className="mr-2" size={20} />
               Información del Producto
             </h3>
@@ -145,7 +145,7 @@ export default function HistorialCambiosPrecio() {
           </div>
 
           <div className="rounded-lg p-4 border border-border">
-            <h3 className="mb-3 flex items-center text-lg font-semibold text-primary/80 dark:text-primary/70">
+            <h3 className="mb-3 flex items-center text-lg font-semibold text-primary/80 dark:text-primary/70 dark:text-white">
               <Calendar className="mr-2" size={20} />
               Detalles del Cambio
             </h3>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, Building2, Layers2 } from "lucide-react";
+import { Box, Building, Layers2 } from "lucide-react";
 import SelectComponent, { SingleValue } from "react-select";
 
 import { Button } from "@/components/ui/button";
@@ -362,7 +362,7 @@ export default function TransferenciaProductos() {
                 !selectedProduct || !selectedSucursalDestino || cantidad < 1
               }
             >
-              Enviar solicitud
+              Enviar stock
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
@@ -408,7 +408,7 @@ export default function TransferenciaProductos() {
                   <Label htmlFor="destino" className="text-right">
                     Destino
                   </Label>
-                  <Building2 width={20} />
+                  <Building width={20} />
                 </div>
                 <div id="destino" className="text-right">
                   {selectedSucursalDestino?.nombre}
