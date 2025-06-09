@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   Package,
   Calendar,
@@ -52,6 +50,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import dayjs from "dayjs";
+import "dayjs/locale/es";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.extend(isSameOrBefore);
+dayjs.extend(isSameOrAfter);
+dayjs.locale("es");
 
 // Tipos
 
@@ -88,6 +97,7 @@ type StockEntregado = {
   id: number;
   productoId: number | null;
   empaqueId: number | null;
+  cantidadInicial: number;
   cantidad: number;
   costoTotal: number;
   creadoEn: string;
@@ -123,8 +133,12 @@ export default function EntregasStock() {
     null
   );
 
+  // const formatDate = (date: string) => {
+  //   return format(new Date(date), "dd 'de' MMMM 'de' yyyy", { locale: es });
+  // };
+
   const formatDate = (date: string) => {
-    return format(new Date(date), "dd 'de' MMMM 'de' yyyy", { locale: es });
+    return dayjs(date).format("DD/MM/YYYY h:mm A");
   };
 
   const getEntregasRegist = async () => {
@@ -231,7 +245,8 @@ export default function EntregasStock() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center text-lg font-semibold">
-              <PackageIcon className="mr-2" size={20} /> Stock Entregado
+              <PackageIcon className="mr-2" size={20} />
+              Stock Entregado
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -241,15 +256,20 @@ export default function EntregasStock() {
                   <h4 className="font-semibold mb-2">
                     {stock.producto?.nombre || stock.empaque?.nombre || "N/A"}
                   </h4>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm font-semibold">
+                    <p>
+                      <span className="font-medium">Cantidad Registrada:</span>{" "}
+                      {stock.cantidadInicial ?? "N/A"}
+                    </p>
                     <p>
                       <span className="font-medium">Código:</span>{" "}
                       {stock.producto?.codigoProducto ||
                         stock.empaque?.codigoProducto ||
                         "N/A"}
                     </p>
+
                     <p>
-                      <span className="font-medium">Cantidad:</span>{" "}
+                      <span className="font-medium">Cantidad Actual:</span>{" "}
                       {stock.cantidad}
                     </p>
                     <p>
@@ -348,7 +368,7 @@ export default function EntregasStock() {
                       <div className="flex items-center">
                         <Package className="mr-2" size={16} />
                         {entrega.stockEntregado.reduce(
-                          (total, prod) => total + prod.cantidad,
+                          (total, prod) => total + prod.cantidadInicial,
                           0
                         )}
                       </div>

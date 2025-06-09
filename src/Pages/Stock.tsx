@@ -95,6 +95,22 @@ export interface StockEmpaque {
   cantidad?: number; // Opcional
   // Puedes agregar más propiedades si necesitas detalles de la sucursal o del stock
 }
+interface SucursalProductSelect {
+  id: number;
+  nombre: string;
+}
+
+interface StockProductoSelect {
+  cantidad: number;
+  id: number;
+  sucursal: SucursalProductSelect;
+}
+interface ProductoSelect {
+  id: number;
+  nombreProducto: string;
+  precioCostoActual: number;
+  stock: StockProductoSelect[];
+}
 
 export default function Stock() {
   const [cantidad, setCantidad] = useState<string>("");
@@ -118,8 +134,6 @@ export default function Stock() {
   const usuarioNombre = useStore((state) => state.userNombre);
   console.log("Lo que vamos a enviar es: ", stockEntries);
 
-  console.log("El id del user logueado es: ", recibidoPorId);
-
   const calculateTotalCost = (
     cantidad: number,
     precioCosto: number
@@ -137,8 +151,6 @@ export default function Stock() {
   useEffect(() => {
     const cantidadNum = parseFloat(cantidad);
     const precioCostoNum = precioCosto;
-    console.log("La cantidad num: ", cantidadNum);
-    console.log("La preciocostoNum: ", precioCostoNum);
 
     if (!isNaN(cantidadNum) && !isNaN(precioCostoNum)) {
       setCostoTotal(cantidadNum * precioCostoNum);
@@ -200,15 +212,12 @@ export default function Stock() {
     setSelectedProductId(""); // Reseteamos el valor del select a un valor vacío
     setCantidad(""); // Reseteamos la cantidad
     setPrecioCosto(0); // Reseteamos el precio de costo
-    // setSelectedProviderId(""); // Reseteamos el proveedor
     setFechaIngreso(new Date()); // Reseteamos la fecha de ingreso
     setFechaVencimiento(null); // Reseteamos la fecha de vencimiento
-    // setSelectedProviderId("");
     setErrors({});
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  console.log("id proveedor: ", selectedProviderId);
 
   const handleSubmit = async () => {
     if (isSubmitting || isDisableSubmit) return;
@@ -260,22 +269,6 @@ export default function Stock() {
     ProductsInventary[]
   >([]);
 
-  interface SucursalProductSelect {
-    id: number;
-    nombre: string;
-  }
-
-  interface StockProductoSelect {
-    cantidad: number;
-    id: number;
-    sucursal: SucursalProductSelect;
-  }
-  interface ProductoSelect {
-    id: number;
-    nombreProducto: string;
-    precioCostoActual: number;
-    stock: StockProductoSelect[];
-  }
   const [productToShow, setProductToShow] = useState<ProductoSelect | null>(
     null
   );
@@ -684,9 +677,16 @@ export default function Stock() {
                   }
                   className="block w-full bg-transparent"
                   type="date"
-                  onChange={(e) =>
-                    setFechaVencimiento(new Date(e.target.value))
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value) {
+                      // Crea la fecha en zona horaria local (medianoche en Guatemala)
+                      const localDate = new Date(`${value}T00:00:00`);
+                      setFechaVencimiento(localDate);
+                    } else {
+                      setFechaVencimiento(null);
+                    }
+                  }}
                 />
                 {errors.fechaVencimiento && (
                   <p className="text-sm text-red-500">

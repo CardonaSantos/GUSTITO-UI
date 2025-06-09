@@ -1,7 +1,19 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { useState, useEffect } from "react";
-import { X, Bell, User, LogOut, AtSign } from "lucide-react";
+import {
+  X,
+  Bell,
+  User,
+  LogOut,
+  AtSign,
+  DollarSign,
+  ArrowRightLeft,
+  Clock,
+  CalendarClock,
+  Info,
+  AlertTriangle,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { ModeToggle } from "../mode-toggle";
 import sandyLogo from "@/assets/GUSTITOSPNG.png";
 
@@ -26,15 +38,14 @@ import { useStore } from "../Context/ContextSucursal";
 import axios from "axios";
 import { Sucursal } from "@/Types/Sucursal/Sucursal_Info";
 import { toast } from "sonner";
-import { Card } from "../ui/card";
+import { Card, CardContent } from "../ui/card";
 import { useSocket } from "../Context/SocketContext";
 
 import dayjs from "dayjs";
 import localizedFormat from "dayjs/plugin/localizedFormat";
 import customParseFormat from "dayjs/plugin/customParseFormat";
-import { useStoreCrm } from "@/Crm/ZustandCrm/ZustandCrmContext";
-import { UserCrmToken } from "@/Crm/CrmAuth/UserCRMToken";
 import { Avatar, AvatarFallback } from "../ui/avatar";
+import { Badge } from "../ui/badge";
 
 dayjs.extend(localizedFormat);
 dayjs.extend(customParseFormat);
@@ -54,6 +65,7 @@ enum TipoNotificacion {
   SOLICITUD_PRECIO = "SOLICITUD_PRECIO",
   TRANSFERENCIA = "TRANSFERENCIA",
   VENCIMIENTO = "VENCIMIENTO",
+  STOCK_BAJO = "STOCK_BAJO",
   OTRO = "OTRO",
 }
 
@@ -65,178 +77,137 @@ interface Notificacion {
   referenciaId: number | null;
   fechaCreacion: string;
 }
+interface Usuario {
+  id: number;
+  nombre: string;
+  rol: string;
+  activo: boolean;
+  correo: string;
+}
 
 export default function Layout2({ children }: LayoutProps) {
   const setUserNombre = useStore((state) => state.setUserNombre);
   const setUserCorreo = useStore((state) => state.setUserCorreo);
   const setUserId = useStore((state) => state.setUserId);
-
-  //PARA EL SISTEMA POS
   const setActivo = useStore((state) => state.setActivo);
   const setRol = useStore((state) => state.setRol);
   const setSucursalId = useStore((state) => state.setSucursalId);
+
+  // Store POS values
+  const posNombre = useStore((state) => state.userNombre);
+  const posCorreo = useStore((state) => state.userCorreo);
   const sucursalId = useStore((state) => state.sucursalId);
-  const socket = useSocket();
   const userID = useStore((state) => state.userId);
-  //PARA EL SISTEMA CRM
 
-  const setNombreCrm = useStoreCrm((state) => state.setNombre);
-  const setCorreoCrm = useStoreCrm((state) => state.setCorreo);
-  const setActivoCrm = useStoreCrm((state) => state.setActivo);
-  const setRolCrm = useStoreCrm((state) => state.setRol);
-  const setUserIdCrm = useStoreCrm((state) => state.setUserIdCrm);
-  const setEmpresaIdCrm = useStoreCrm((state) => state.setEmpresaId);
-
-  //POS
-  const nombrePos = useStore((state) => state.userNombre);
-  const correoPos = useStore((state) => state.userCorreo);
-
-  //CRM
-  const nombreCrm = useStoreCrm((state) => state.nombre);
-  const correoCrm = useStoreCrm((state) => state.correo);
-  const rol = useStoreCrm((state) => state.rol);
-  const empresaID = useStoreCrm((state) => state.empresaId);
-  useEffect(() => {
-    const storedToken = localStorage.getItem("authTokenPos");
-    const storedTokenCRM = localStorage.getItem("tokenAuthCRM");
-
-    if (storedToken) {
-      try {
-        const decodedToken = jwtDecode<UserToken>(storedToken);
-        // setTokenUser(decodedToken);
-        setUserNombre(decodedToken.nombre);
-        setUserCorreo(decodedToken.correo);
-        setActivo(decodedToken.activo);
-        setRol(decodedToken.rol);
-        setUserId(decodedToken.sub);
-        setSucursalId(decodedToken.sucursalId);
-      } catch (error) {
-        console.error("Error decoding token:", error);
-      }
-    }
-    if (storedTokenCRM) {
-      try {
-        const decodedTokenCrm = jwtDecode<UserCrmToken>(storedTokenCRM);
-
-        setNombreCrm(decodedTokenCrm.nombre);
-        setActivoCrm(decodedTokenCrm.activo);
-        setCorreoCrm(decodedTokenCrm.correo);
-        setRolCrm(decodedTokenCrm.rol);
-        setUserIdCrm(decodedTokenCrm.id);
-        setEmpresaIdCrm(decodedTokenCrm.empresaId);
-      } catch (error) {
-        console.log("Error decodificando token: ", error);
-      }
-    }
-  }, []);
-  console.log("mi nombre crm es: ", nombreCrm);
-  console.log("mi rol crm es: ", rol);
-  console.log("mi empresa id es: ", empresaID);
-
-  const storedTokenCRM = localStorage.getItem("tokenAuthCRM");
-
-  console.log("mi token crm es: ", storedTokenCRM);
-  const isCrmLocation = useLocation().pathname.startsWith("/crm");
-  // Determinar qué datos usar según la URL
-  const nombreUsuario = isCrmLocation ? nombreCrm : nombrePos;
-  const correoUsuario = isCrmLocation ? correoCrm : correoPos;
-  // const avatarUsuario = isCrmLocation ? avatarCrm : avatarPos;
-
-  function handleDeletToken() {
-    if (isCrmLocation) {
-      localStorage.removeItem("tokenAuthCRM");
-      toast.info("Sesión en CRM cerrada");
-    } else {
-      localStorage.removeItem("authTokenPos");
-      toast.info("Sesión en POS cerrada");
-    }
-    window.location.reload();
-  }
+  // Local state
+  const socket = useSocket();
   const [sucursalInfo, setSucursalInfo] = useState<Sucursal>();
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
 
+  // Decodificar y setear datos del POS al iniciar
   useEffect(() => {
-    const getInfoSucursal = async () => {
+    const token = localStorage.getItem("authTokenPos");
+    if (!token) return;
+    try {
+      const decoded = jwtDecode<UserToken>(token);
+      setUserNombre(decoded.nombre);
+      setUserCorreo(decoded.correo);
+      setActivo(decoded.activo);
+      setRol(decoded.rol);
+      setUserId(decoded.sub);
+      setSucursalId(decoded.sucursalId);
+    } catch (error) {
+      console.error("Error decoding authTokenPos:", error);
+    }
+  }, [
+    setUserNombre,
+    setUserCorreo,
+    setActivo,
+    setRol,
+    setUserId,
+    setSucursalId,
+  ]);
+
+  // Obtener datos de usuario del backend cuando cambie el userID
+  useEffect(() => {
+    if (!userID) return;
+    const fetchUser = async () => {
       try {
-        const response = await axios.get(
-          `${API_URL}/sucursales/get-info-sucursal/${sucursalId}`
+        const { data } = await axios.get<Usuario>(
+          `${API_URL}/user/find-my-user/${userID}`
         );
-        if (response.status === 200) {
-          setSucursalInfo(response.data);
-        }
+        setUsuario(data);
       } catch (error) {
-        console.error("Error fetching sucursal info:", error);
+        console.error("Error fetching usuario:", error);
       }
     };
+    fetchUser();
+  }, [userID]);
 
-    // Solo hace la petición si sucursalId es válido
-    if (sucursalId) {
-      getInfoSucursal();
-    }
-  }, [sucursalId]); // Ahora depende de sucursalId
-
-  console.log("La info de la sucursal actual es: ", sucursalInfo);
-
-  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  useEffect(() => {
+    if (!sucursalId) return;
+    axios
+      .get<Sucursal>(`${API_URL}/sucursales/get-info-sucursal/${sucursalId}`)
+      .then((res) => setSucursalInfo(res.data))
+      .catch((err) => console.error("Error fetching sucursal info:", err));
+  }, [sucursalId]);
 
   const getNotificaciones = async () => {
+    if (!userID) return;
     try {
-      if (isCrmLocation) {
-        const response = await axios.get(
-          `${API_URL}/notification/get-my-notifications/${userID}`
-        );
-        if (response.status === 200) {
-          setNotificaciones(response.data);
-        }
-      }
-    } catch (error) {
-      console.log(error);
+      const { data } = await axios.get<Notificacion[]>(
+        `${API_URL}/notification/get-my-notifications/${userID}`
+      );
+      setNotificaciones(data);
+    } catch (err) {
+      console.error("Error loading notificaciones:", err);
       toast.error("Error al conseguir notificaciones");
     }
   };
 
+  // Cargar notificaciones cuando cambie userID
   useEffect(() => {
-    if (isCrmLocation) {
-      console.log("Conseguir notificaciones del CRM");
-    } else {
-      if (userID) {
-        getNotificaciones();
-      }
-    }
+    getNotificaciones();
   }, [userID]);
 
+  // Escuchar nuevas notificaciones via socket
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (nueva: Notificacion) => {
+      setNotificaciones((prev) => [nueva, ...prev]);
+    };
+    socket.on("recibirNotificacion", handler);
+    return () => {
+      socket.off("recibirNotificacion", handler);
+    };
+  }, [socket]);
+
+  // Eliminar notificación
   const deleteNoti = async (id: number) => {
     try {
-      const response = await axios.delete(
+      await axios.delete(
         `${API_URL}/notification/delete-my-notification/${id}/${userID}`
       );
-      if (response.status === 200) {
-        toast.success("Notificación eliminada");
-        getNotificaciones(); // Actualiza las notificaciones después de eliminar
-      }
-    } catch (error) {
-      console.log(error);
+      toast.success("Notificación eliminada");
+      getNotificaciones();
+    } catch (err) {
+      console.error("Error deleting notificacion:", err);
       toast.error("Error al eliminar notificación");
     }
   };
 
-  // Escuchar el evento de nueva notificación entrante
-  useEffect(() => {
-    if (socket) {
-      console.log("Escuchando evento para notificaciones");
+  // Logout POS
+  const handleLogout = () => {
+    localStorage.removeItem("authTokenPos");
+    toast.info("Sesión cerrada");
+    window.location.reload();
+  };
+  const logoClasses = "h-20 w-20 md:h-24 md:w-24";
 
-      socket.on("recibirNotificacion", (nuevaNotificacion: Notificacion) => {
-        setNotificaciones((prevNotificaciones) => [
-          nuevaNotificacion,
-          ...prevNotificaciones,
-        ]);
-      });
-
-      // Limpieza del evento al desmontar el componente o desconectarse el socket
-      return () => {
-        socket.off("recibirNotificacion");
-      };
-    }
-  }, [socket]);
+  // Datos finales del usuario a mostrar (backend > store)
+  const nombreUsuario = usuario?.nombre || posNombre || "??";
+  const correoUsuario = usuario?.correo || posCorreo || "??";
 
   return (
     <div className="flex min-h-screen">
@@ -246,139 +217,157 @@ export default function Layout2({ children }: LayoutProps) {
         {/* Contenedor principal para el toolbar y el contenido */}
         <div className="flex flex-col w-full">
           {/* Toolbar */}
-          <div className="sticky top-0 z-10 h-16 w-full bg-background border-b border-border shadow-sm flex items-center justify-between">
-            <div className="mx-auto flex h-16 max-w-7xl w-full items-center px-4 sm:px-6 lg:px-8 justify-between">
-              {/* Sección izquierda: Logo y nombre de la sucursal */}
-              <div className="flex items-center space-x-2">
-                <Link to={isCrmLocation ? "/crm" : "/"}>
-                  <img
-                    className={`h-28 w-32 
-                    `}
-                    src={sandyLogo}
-                    alt="Logo"
-                  />
-                </Link>
-                <Link to={isCrmLocation ? "/crm" : "/"}>
-                  <p className="text-xs font-semibold text-foreground sm:text-sm md:text-base">
-                    {sucursalInfo?.nombre ? sucursalInfo?.nombre : ""}
-                  </p>
-                </Link>
-              </div>
-              {/* Sección derecha: Toggle de modo, notificaciones y menú de usuario */}
-              <div className="flex items-center space-x-2">
-                <div className=""></div>
+          <header className="sticky top-0 z-10 h-16 w-full bg-background border-b shadow-sm flex items-center justify-between px-4">
+            <div className="flex items-center space-x-2">
+              <Link to="/">
+                <img src={sandyLogo} alt="Logo" className={logoClasses} />
+              </Link>
+              <p className="text-xs font-semibold text-foreground sm:text-sm md:text-base">
+                {sucursalInfo?.nombre || ""}
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <ModeToggle />
+              <Dialog>
+                <DialogTrigger asChild>
+                  <div className="relative">
+                    <Button variant="outline" size="icon">
+                      <Bell className="h-6 w-6" />
+                    </Button>
+                    {notificaciones.length > 0 && (
+                      <span className="absolute top-0 right-0 inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-primary-foreground bg-rose-500 rounded-full">
+                        {notificaciones.length}
+                      </span>
+                    )}
+                  </div>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="text-center text-2xl font-bold">
+                      Notificaciones
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="py-4 overflow-y-auto max-h-96">
+                    {notificaciones.length > 0 ? (
+                      notificaciones.map((not) => {
+                        // Determine icon and color based on notification type
+                        let icon;
+                        let bgColor;
+                        let borderColor;
 
-                <div className=" ">
-                  <ModeToggle />
-                </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <div className="relative">
-                      <Button variant="outline" size="icon" className="mr-4">
-                        <Bell className="h-6 w-6" />
-                      </Button>
-                      {notificaciones.length > 0 && (
-                        <span className="absolute top-0 right-0 inline-flex items-center justify-center w-6 h-6 text-xs font-bold leading-none text-primary-foreground bg-rose-500 rounded-full">
-                          {notificaciones.length}
-                        </span>
-                      )}
-                    </div>
-                  </DialogTrigger>
+                        switch (not.tipoNotificacion) {
+                          case TipoNotificacion.SOLICITUD_PRECIO:
+                            icon = <DollarSign className="h-5 w-5" />;
+                            bgColor = "bg-amber-50 dark:bg-amber-950/30";
+                            borderColor = "border-l-amber-500";
+                            break;
+                          case TipoNotificacion.TRANSFERENCIA:
+                            icon = <ArrowRightLeft className="h-5 w-5" />;
+                            bgColor = "bg-emerald-50 dark:bg-emerald-950/30";
+                            borderColor = "border-l-emerald-500";
+                            break;
+                          case TipoNotificacion.VENCIMIENTO:
+                            icon = <Clock className="h-5 w-5" />;
+                            bgColor = "bg-rose-50 dark:bg-rose-950/30";
+                            borderColor = "border-l-rose-500";
+                            break;
+                          case TipoNotificacion.STOCK_BAJO:
+                            icon = <AlertTriangle className="h-5 w-5" />;
+                            bgColor = "bg-orange-50 dark:bg-orange-950/30";
+                            borderColor = "border-l-orange-500";
+                            break;
+                          default:
+                            icon = <Info className="h-5 w-5" />;
+                            bgColor = "bg-sky-50 dark:bg-sky-950/30";
+                            borderColor = "border-l-sky-500";
+                            break;
+                        }
 
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle className="text-center text-2xl font-bold">
-                        Notificaciones
-                      </DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 overflow-y-auto max-h-96">
-                      {notificaciones && notificaciones.length > 0 ? (
-                        notificaciones.map((not) => (
-                          <Card className="m-2 p-4 shadow-md" key={not.id}>
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <p
-                                  style={{ fontSize: "9px" }}
-                                  className={`font-semibold ${
-                                    not.tipoNotificacion ===
-                                    TipoNotificacion.SOLICITUD_PRECIO
-                                      ? "text-green-600 dark:text-green-400"
-                                      : not.tipoNotificacion ===
-                                        TipoNotificacion.TRANSFERENCIA
-                                      ? "text-blue-600 dark:text-blue-400"
-                                      : not.tipoNotificacion ===
-                                        TipoNotificacion.VENCIMIENTO
-                                      ? "text-red-600 dark:text-red-400"
-                                      : "text-muted-foreground"
-                                  }`}
-                                >
-                                  {TipoNotificacion[not.tipoNotificacion]}
-                                </p>
-                                <p className="text-sm mt-1 break-words text-foreground">
-                                  {not.mensaje}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {formatearFecha(not.fechaCreacion)}
-                                </p>
+                        return (
+                          <Card
+                            key={not.id}
+                            className={`m-2 shadow-sm transition-all hover:shadow-md ${bgColor} border-l-4 ${borderColor}`}
+                          >
+                            <CardContent className="p-3">
+                              <div className="flex items-start gap-3">
+                                <div className="mt-1 text-foreground/80">
+                                  {icon}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <Badge
+                                      variant="outline"
+                                      className="mb-1 font-medium"
+                                    >
+                                      {not.tipoNotificacion.replace(/_/g, " ")}
+                                    </Badge>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7"
+                                      onClick={() => deleteNoti(not.id)}
+                                      aria-label="Eliminar notificación"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  <p className="text-sm font-medium break-words">
+                                    {not.mensaje}
+                                  </p>
+                                  <div className="flex items-center mt-2 text-xs text-muted-foreground">
+                                    <CalendarClock className="h-3.5 w-3.5 mr-1" />
+                                    {formatearFecha(not.fechaCreacion)}
+                                  </div>
+                                </div>
                               </div>
-                              <Button
-                                style={{ width: "25px", height: "25px" }}
-                                size={"icon"}
-                                type="button"
-                                variant={"destructive"}
-                                title="Eliminar Notificación"
-                                className="rounded-full p-2 ml-2 flex-shrink-0"
-                                onClick={() => deleteNoti(not.id)} // Pasa el id directamente
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            </CardContent>
                           </Card>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground">
+                        );
+                      })
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <Bell className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                        <p className="text-muted-foreground">
                           No hay notificaciones.
                         </p>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <div className="">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="rounded-full"
-                      >
-                        <User className="h-5 w-5" />
-                        <span className="sr-only">User menu</span>
-                        <Avatar className="bg-[#e2b7b8] border-2 border-transparent dark:border-white dark:bg-transparent">
-                          <AvatarFallback className="bg-[#823d81] text-white font-bold dark:bg-transparent dark:text-[#e2b7b8]">
-                            {nombreUsuario?.slice(0, 2).toUpperCase() || "??"}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <User className="mr-2 h-4 w-4" />
-                        <span>{nombreUsuario}</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <AtSign className="mr-2 h-4 w-4" />
-                        <span>{correoUsuario}</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleDeletToken}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Cerrar Sesión</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full"
+                  >
+                    <User className="h-5 w-5" />
+                    <span className="sr-only">User menu</span>
+                    <Avatar className="bg-[#e2b7b8] border-2 border-transparent dark:border-white dark:bg-transparent">
+                      <AvatarFallback className="bg-[#823d81] text-white font-bold dark:bg-transparent dark:text-[#e2b7b8]">
+                        {nombreUsuario?.slice(0, 2).toUpperCase() || "??"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>{nombreUsuario}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <AtSign className="mr-2 h-4 w-4" />
+                    <span>{correoUsuario}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Cerrar Sesión</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </div>
+          </header>
 
           {/* Contenido principal */}
           <main className="flex-1 overflow-y-auto p-1 lg:p-8">

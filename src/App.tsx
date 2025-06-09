@@ -142,15 +142,6 @@ function App() {
               }
             />
 
-            {/* <Route
-              path="/add-sucursal"
-              element={
-                // <ProtectRSuperAdmin>
-                <CreateSucursal />
-                // </ProtectRSuperAdmin>
-              }
-            /> */}
-
             <Route
               path="/inventario"
               element={

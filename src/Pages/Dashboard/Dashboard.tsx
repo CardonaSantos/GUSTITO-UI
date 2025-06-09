@@ -191,7 +191,6 @@ export default function Dashboard() {
 
   const getInfo = async () => {
     try {
-      // Realiza las tres peticiones en paralelo
       const [
         ventasMes,
         ventasSemana,
@@ -203,13 +202,9 @@ export default function Dashboard() {
         axios.get(`${API_URL}/analytics/get-ventas/mes/${sucursalId}`),
         axios.get(`${API_URL}/analytics/get-ventas/semana/${sucursalId}`),
         axios.get(`${API_URL}/analytics/venta-dia/${sucursalId}`),
-
-        // {API_URL}/analytics/venta-dia/${suc.id}
-
         axios.get(
           `${API_URL}/analytics/get-ventas/semanal-chart/${sucursalId}`
         ),
-
         axios.get(`${API_URL}/analytics/get-productos-mas-vendidos/`),
         axios.get(`${API_URL}/analytics/get-ventas-recientes/`),
       ]);
@@ -223,12 +218,10 @@ export default function Dashboard() {
       setTransaccionesRecientes(transaccionesRecientesR.data);
     } catch (error) {
       console.error("Error al obtener los datos:", error);
-      // Maneja los errores aquí
       toast.error("Error al recuperar informacion de ventas del servidor");
     }
   };
 
-  // Llamar a la función
   useEffect(() => {
     if (sucursalId) {
       getInfo();
@@ -354,10 +347,8 @@ export default function Dashboard() {
           solicitudNueva,
         ]);
       };
-
       // Escucha el evento
       socket.on("recibirSolicitudTransferencia", handleSolicitud);
-
       // Limpia el listener al desmontar
       return () => {
         socket.off("recibirSolicitudTransferencia", handleSolicitud);
