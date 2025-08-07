@@ -133,10 +133,6 @@ export default function EntregasStock() {
     null
   );
 
-  // const formatDate = (date: string) => {
-  //   return format(new Date(date), "dd 'de' MMMM 'de' yyyy", { locale: es });
-  // };
-
   const formatDate = (date: string) => {
     return dayjs(date).format("DD/MM/YYYY h:mm A");
   };

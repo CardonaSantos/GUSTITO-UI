@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 
 import {
+  AlertTriangle,
   Barcode,
   Box,
   ChevronLeft,
@@ -21,7 +22,9 @@ import {
   Eye,
   FileText,
   List,
+  Loader2,
   Tag,
+  X,
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
@@ -46,6 +49,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -336,6 +340,28 @@ export default function InventarioEmpaques() {
     } catch (error) {
       console.error(error);
       toast.error("Error al actualizar el empaque");
+    }
+  };
+
+  const [openDelete, setOpenDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const handleMarkDeletedEmpaque = async () => {
+    if (isDeleting || !selectedEmpaque) return;
+    setIsDeleting(true);
+    try {
+      const { status } = await axios.delete(
+        `${API_URL}/empaque/mark-deleted/${selectedEmpaque.id}`
+      );
+      if (status === 200) {
+        toast.success("Empaque eliminado");
+        setOpenDelete(false);
+        getEmpaquesInventario(); // refetch
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al eliminar el empaque");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -847,9 +873,75 @@ export default function InventarioEmpaques() {
               </div>
             </div>
             <DialogFooter>
+              <Button
+                onClick={() => {
+                  setOpenDelete(true);
+                  setEditDialogOpen(false);
+                }}
+                type="button"
+              >
+                Eliminar
+              </Button>
+
               <Button type="submit">Guardar cambios</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MARCAR COMO ELIMINADO */}
+      <Dialog open={openDelete} onOpenChange={setOpenDelete}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+              <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-center">
+              Confirmar eliminación
+            </DialogTitle>
+            <DialogDescription className="text-base leading-relaxed text-center">
+              ¿Estás seguro de que quieres eliminar el empaque{" "}
+              <span className="font-semibold text-foreground">
+                "{selectedEmpaque?.nombre}"
+              </span>
+              ?
+              <br />
+              <span className="text-sm text-muted-foreground mt-2 block text-center">
+                Esta acción no se puede deshacer.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-center sm:space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenDelete(false)}
+              disabled={isDeleting}
+              className="w-full sm:w-auto order-2 sm:order-1"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleMarkDeletedEmpaque}
+              disabled={isDeleting}
+              className="w-full sm:w-auto order-1 sm:order-2"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <X className="mr-2 h-4 w-4" />
+                  Eliminar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
