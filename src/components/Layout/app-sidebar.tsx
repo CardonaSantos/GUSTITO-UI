@@ -22,6 +22,7 @@ import {
   ChevronDown,
   Goal,
   Target,
+  ChartBarBig,
 } from "lucide-react";
 
 import {
@@ -91,6 +92,8 @@ const menuVendedor = [
 
 const menuItemsAdmin = [
   { icon: Home, label: "Home", href: "/" },
+  { icon: ChartBarBig, label: "Análisis ", href: "/analisis" },
+
   { icon: ShoppingCart, label: "Punto de Venta", href: "/punto-venta" },
   { icon: Clock, label: "Historial de Ventas", href: "/historial/ventas" },
   {

@@ -1,17 +1,21 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  // FileSpreadsheet,
   FileText,
-  // Ticket,
   Trash2,
+  Search,
+  CalendarDays,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+
 import {
   Table,
   TableBody,
@@ -31,18 +35,15 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Importa los tipos
 import type {
-  VentasHistorial,
   Venta,
   ProductoVenta,
 } from "../Types/SalesHistory/HistorialVentas";
-import axios from "axios";
+
 import { toast } from "sonner";
 import {
   Pagination,
   PaginationContent,
-  // PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -55,34 +56,199 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-const API_URL = import.meta.env.VITE_API_URL;
 
 import DatePicker, { registerLocale } from "react-datepicker";
-
 import "react-datepicker/dist/react-datepicker.css";
+
 import { useStore } from "@/components/Context/ContextSucursal";
 import { Textarea } from "@/components/ui/textarea";
+
+import {
+  useGetSucursalSalesHistory,
+  type SucursalSalesFilters,
+} from "@/hooks/useHooks/useVentaQueries";
+import {
+  useDeleteVenta,
+  type DeleteVentaPayload,
+} from "@/hooks/useHooks/useVentaMutations";
+
 registerLocale("es", es);
 
-interface Producto {
-  productoId: number;
-  cantidad: number;
-  precioVenta: number;
-}
+type VentaToDelete = Omit<DeleteVentaPayload, "adminPassword">;
 
-interface VentaToDelete {
-  sucursalId: number;
-  ventaId: number;
-  usuarioId: number;
-  motivo: string;
-  totalVenta: number;
-  clienteId: number;
-  productos: Producto[];
-}
+const formatearFecha = (fecha: string) => {
+  return format(new Date(fecha), "dd/MM/yyyy", { locale: es });
+};
+
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("es-GT", {
+    style: "currency",
+    currency: "GTQ",
+  }).format(amount);
+
+// ────────────────────────────────────────────────────────────
+// Detalle de venta
+// ────────────────────────────────────────────────────────────
+
+const DetallesVenta = ({ venta }: { venta: Venta }) => (
+  <Card className="w-full shadow-xl">
+    <CardHeader>
+      <CardTitle>Detalles de la Venta #{venta?.id || "N/A"}</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <h3 className="font-semibold">Información de la Venta</h3>
+          <p>
+            Fecha:{" "}
+            {venta?.fechaVenta ? formatearFecha(venta.fechaVenta) : "N/A"}
+          </p>
+          <p>
+            Hora:{" "}
+            {venta?.horaVenta
+              ? new Date(venta.horaVenta).toLocaleTimeString()
+              : "N/A"}
+          </p>
+          <p>
+            Cantidad:{" "}
+            {venta?.productos
+              ? venta.productos.reduce(
+                  (total, producto) => total + producto.cantidad,
+                  0
+                )
+              : "N/A"}{" "}
+            unidades de {venta?.productos?.length || "0"} productos
+          </p>
+        </div>
+        <div>
+          <h3 className="font-semibold">Cliente</h3>
+          {venta?.cliente ? (
+            <>
+              <p>Nombre: {venta.cliente.nombre || "N/A"}</p>
+              <p>Teléfono: {venta.cliente.telefono || "N/A"}</p>
+              <p>DPI: {venta.cliente.dpi || "N/A"}</p>
+              <p>Dirección: {venta.cliente.direccion || "N/A"}</p>
+            </>
+          ) : (
+            <>
+              <p>Nombre: {venta?.nombreClienteFinal || "CF"}</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <h3 className="font-semibold">Productos</h3>
+        <div className="max-h-60 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Producto</TableHead>
+                <TableHead>Cantidad</TableHead>
+                <TableHead>Precio Unitario</TableHead>
+                <TableHead>Subtotal</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {venta?.productos?.length > 0 ? (
+                venta.productos.map((producto: ProductoVenta) => (
+                  <TableRow key={producto.id}>
+                    <TableCell>{producto.producto?.nombre || "N/A"}</TableCell>
+                    <TableCell>{producto.cantidad ?? "N/A"}</TableCell>
+                    <TableCell>
+                      {producto.precioVenta !== undefined
+                        ? formatCurrency(producto.precioVenta)
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      {producto.cantidad !== undefined &&
+                      producto.precioVenta !== undefined
+                        ? formatCurrency(
+                            producto.cantidad * producto.precioVenta
+                          )
+                        : "N/A"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center">
+                    No hay productos disponibles
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <h3 className="font-semibold">Método de Pago</h3>
+        <p>Tipo: {venta?.metodoPago?.metodoPago || "N/A"}</p>
+        <p>
+          Monto total pagado:{" "}
+          {venta?.totalVenta !== undefined
+            ? formatCurrency(venta.totalVenta)
+            : "N/A"}
+        </p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+// ────────────────────────────────────────────────────────────
+// Page principal
+// ────────────────────────────────────────────────────────────
 
 export default function HistorialVentas() {
   const sucursalId = useStore((state) => state.sucursalId) ?? 0;
   const userRol = useStore((state) => state.userRol) ?? "VENDEDOR";
+  const userId = useStore((state) => state.userId) ?? 0;
+
+  // Filtros locales que viajan al server
+  const [filtroVenta, setFiltroVenta] = useState("");
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
+    null,
+    null,
+  ]);
+  const [showSummary, setShowSummary] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 6;
+
+  const [startDate, endDate] = dateRange;
+
+  // Construimos filtros para el hook
+  const filters: SucursalSalesFilters = useMemo(() => {
+    const from =
+      startDate != null
+        ? format(startDate, "yyyy-MM-dd") // el server espera ISO simple
+        : undefined;
+    const to = endDate != null ? format(endDate, "yyyy-MM-dd") : undefined;
+
+    return {
+      page: currentPage,
+      pageSize,
+      search: filtroVenta || undefined,
+      from,
+      to,
+    };
+  }, [currentPage, pageSize, filtroVenta, startDate, endDate]);
+
+  // Query principal
+  const {
+    data,
+    isLoading: isLoadingVentas,
+    isFetching: isFetchingVentas,
+  } = useGetSucursalSalesHistory(sucursalId, filters);
+
+  const ventas = data?.items ?? [];
+  const totalItems = data?.totalItems ?? 0;
+  const totalPages = data?.totalPages ?? 1;
+  const summary = data?.summary ?? null;
+
+  // Eliminar venta
+  const { mutateAsync: deleteVenta, isPending: isDeleting } = useDeleteVenta();
+
   const [ventaEliminar, setVentaEliminar] = useState<VentaToDelete>({
     usuarioId: 0,
     motivo: "",
@@ -90,242 +256,15 @@ export default function HistorialVentas() {
     clienteId: 0,
     productos: [],
     ventaId: 0,
-    sucursalId: sucursalId,
+    sucursalId,
   });
 
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-
-  const [filtroVenta, setFiltroVenta] = useState("");
-  const [ventas, setVentas] = useState<VentasHistorial>([]);
-  const formatearFecha = (fecha: string) => {
-    return format(new Date(fecha), "dd/MM/yyyy", { locale: es });
-  };
-
-  const getVentas = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/venta/find-my-sucursal-sales/${sucursalId}`
-      );
-      if (response.status === 200) {
-        setVentas(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("No hay ventas disponibles");
-    }
-  };
-
-  useEffect(() => {
-    if (sucursalId) {
-      getVentas();
-    }
-  }, [sucursalId]);
-
-  console.log("Las ventas en el historial ventas son: ", ventas);
-
-  const DetallesVenta = ({ venta }: { venta: Venta }) => (
-    <Card className="w-full shadow-xl">
-      <CardHeader>
-        <CardTitle>Detalles de la Venta #{venta?.id || "N/A"}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <h3 className="font-semibold">Información de la Venta</h3>
-            <p>
-              Fecha:{" "}
-              {venta?.fechaVenta ? formatearFecha(venta.fechaVenta) : "N/A"}
-            </p>
-            <p>
-              Hora:{" "}
-              {venta?.horaVenta
-                ? new Date(venta.horaVenta).toLocaleTimeString()
-                : "N/A"}
-            </p>
-            <p>
-              Cantidad:{" "}
-              {venta?.productos
-                ? venta.productos.reduce(
-                    (total, producto) => total + producto.cantidad,
-                    0
-                  )
-                : "N/A"}{" "}
-              unidades de {venta?.productos?.length || "0"} Productos
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold">Cliente</h3>
-            {venta?.cliente ? (
-              <>
-                <p>Nombre: {venta.cliente.nombre || "N/A"}</p>
-                {/* <p>Correo: {venta.cliente.correo || "N/A"}</p> */}
-                <p>Teléfono: {venta.cliente.telefono || "N/A"}</p>
-                <p>DPI: {venta.cliente.dpi || "N/A"}</p>
-                <p>Direccion: {venta.cliente.direccion || "N/A"}</p>
-              </>
-            ) : (
-              <>
-                <p>Nombre: {venta?.nombreClienteFinal || "CF"}</p>
-                {/* <p>Teléfono: {venta?.telefonoClienteFinal || "N/A"}</p> */}
-                {/* <p>Dirección: {venta?.direccionClienteFinal || "N/A"}</p> */}
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <h3 className="font-semibold">Productos</h3>
-          {/* Aquí limito la altura de la tabla y agrego scroll */}
-          <div className="max-h-60 overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead>Cantidad</TableHead>
-                  <TableHead>Precio Unitario</TableHead>
-                  <TableHead>Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {venta?.productos?.length > 0 ? (
-                  venta.productos.map((producto: ProductoVenta) => (
-                    <TableRow key={producto.id}>
-                      <TableCell>
-                        {producto.producto?.nombre || "N/A"}
-                      </TableCell>
-                      <TableCell>{producto.cantidad || "N/A"}</TableCell>
-                      <TableCell>
-                        {producto.precioVenta !== undefined
-                          ? new Intl.NumberFormat("es-GT", {
-                              style: "currency",
-                              currency: "GTQ",
-                            }).format(producto.precioVenta)
-                          : "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        {producto.cantidad !== undefined &&
-                        producto.precioVenta !== undefined
-                          ? new Intl.NumberFormat("es-GT", {
-                              style: "currency",
-                              currency: "GTQ",
-                            }).format(producto.cantidad * producto.precioVenta)
-                          : "N/A"}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center">
-                      No hay productos disponibles
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <h3 className="font-semibold">Método de Pago</h3>
-          <p>Tipo: {venta?.metodoPago?.metodoPago || "N/A"}</p>
-          <p>
-            Monto total pagado:{" "}
-            {venta?.totalVenta !== undefined
-              ? new Intl.NumberFormat("es-GT", {
-                  style: "currency",
-                  currency: "GTQ",
-                }).format(venta.totalVenta)
-              : "N/A"}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  console.log(
-    "Las fechas de las ventas son: ",
-    ventas.map((venta) => venta.fechaVenta)
-  );
-
-  const filter = ventas
-    .filter((venta) => {
-      // Convertir la fecha de la venta a formato sin hora
-      const ventaFecha = new Date(venta.fechaVenta);
-      // Eliminar la hora de la fecha seleccionada
-      const fechaSeleccionada =
-        startDate && new Date(startDate).setHours(0, 0, 0, 0); // Solo la fecha sin la hora
-      const ventaFechaSinHora = ventaFecha.setHours(0, 0, 0, 0); // Solo la fecha sin la hora
-
-      // Compara solo las fechas sin tener en cuenta la hora
-      const fechaCoincide = fechaSeleccionada
-        ? fechaSeleccionada === ventaFechaSinHora
-        : true; // Si no hay fecha seleccionada, no se aplica filtro
-
-      // Filtra por nombre, teléfono, dpi, dirección o id, y también por fecha si se selecciona
-      return (
-        (venta.cliente?.nombre
-          .trim()
-          .toLowerCase()
-          .includes(filtroVenta.trim().toLowerCase()) ||
-          venta.cliente?.telefono
-            .trim()
-            .toLowerCase()
-            .includes(filtroVenta.trim().toLowerCase()) ||
-          venta.cliente?.dpi
-            .trim()
-            .toLowerCase()
-            .includes(filtroVenta.trim().toLowerCase()) ||
-          venta.cliente?.direccion
-            .trim()
-            .toLowerCase()
-            .includes(filtroVenta.trim().toLowerCase()) ||
-          venta.cliente?.id
-            .toString()
-            .trim()
-            .toLowerCase()
-            .includes(filtroVenta.trim().toLowerCase()) ||
-          venta.id
-            .toString()
-            .trim()
-            .toLowerCase()
-            .includes(filtroVenta.trim().toLowerCase())) &&
-        fechaCoincide
-      );
-    })
-    .sort((a, b) => {
-      const fechaA = new Date(a.fechaVenta).getTime();
-      const fechaB = new Date(b.fechaVenta).getTime();
-      return fechaB - fechaA;
-    });
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
-  const totalPages = Math.ceil(filter.length / itemsPerPage);
-
-  // Calcular el índice del último elemento de la página actual
-  const indexOfLastItem = currentPage * itemsPerPage;
-  // Calcular el índice del primer elemento de la página actual
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  // Obtener los elementos de la página actual
-  const currentItems = filter.slice(indexOfFirstItem, indexOfLastItem);
-
-  // Cambiar de página
-  const onPageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  console.log("LA FECHA SELECCIONADA ES: ", startDate);
-  const userId = useStore((state) => state.userId) ?? 0;
-
-  console.log("La venta para eliminar seleccionada es: ", ventaEliminar);
-
-  const [isOpenDelete, setIsOpenDelete] = useState(false); // Estado del modal
-  const [isDeleting, setIsDeleting] = useState(false); // Estado para deshabilitar el botón
+  const [isOpenDelete, setIsOpenDelete] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
 
   const handleDeleteSale = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validaciones básicas
     if (!adminPassword || adminPassword.trim().length === 0) {
       toast.info("Contraseña no ingresada");
       return;
@@ -341,36 +280,27 @@ export default function HistorialVentas() {
       return;
     }
 
-    setIsDeleting(true); // Deshabilitar el botón mientras se procesa la solicitud
     try {
-      const response = await axios.post(`${API_URL}/sale-deleted`, {
+      await deleteVenta({
         ...ventaEliminar,
-        adminPassword, // Enviar la contraseña junto con los datos
+        adminPassword,
       });
 
-      if (response.status === 201) {
-        console.log("Lo que devuele el servidor es: ", response.data);
+      toast.success("Venta eliminada exitosamente");
 
-        toast.success("Venta eliminada exitosamente");
-        setIsOpenDelete(false); // Cerrar el modal después de eliminar
-        setVentaEliminar({
-          usuarioId: userId,
-          motivo: "",
-          totalVenta: 0,
-          clienteId: 0,
-          productos: [],
-          ventaId: 0,
-          sucursalId,
-        }); // Reiniciar el estado de la venta
-        setAdminPassword(""); // Limpiar la contraseña
-        getVentas();
-        setTimeout(() => {
-          setIsDeleting(false); // Habilitar el botón nuevamente
-        }, 1000);
-      }
-    } catch (error) {
+      setIsOpenDelete(false);
+      setVentaEliminar({
+        usuarioId: userId,
+        motivo: "",
+        totalVenta: 0,
+        clienteId: 0,
+        productos: [],
+        ventaId: 0,
+        sucursalId,
+      });
+      setAdminPassword("");
+    } catch {
       toast.error("Ocurrió un error al eliminar la venta");
-      setIsDeleting(false); // Habilitar el botón nuevamente
     }
   };
 
@@ -378,210 +308,308 @@ export default function HistorialVentas() {
     e: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
     const texto = e.target.value;
-
     setVentaEliminar((datosPrevios) => ({
       ...datosPrevios,
       motivo: texto,
     }));
   };
 
-  const [adminPassword, setAdminPassword] = useState("");
+  const handleChangePage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Historial de Ventas</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <Input
-          placeholder="Filtrar por número de venta, nombre, teléfono, dpi, dirección"
-          value={filtroVenta}
-          onChange={(e) => setFiltroVenta(e.target.value)}
-        />
-        <div className="w-full md:w-1/2">
-          <DatePicker
-            locale="es"
-            selected={startDate}
-            onChange={(date) => {
-              setStartDate(date || undefined);
-            }}
-            className="w-full px-4 py-2 border rounded-md bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:placeholder-gray-500"
-            isClearable
-            placeholderText="Seleccionar una fecha"
+    <div className="container mx-auto space-y-4 p-4">
+      {/* Header */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Historial de Ventas
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Consulta, filtra y administra las ventas de esta sucursal.
+          </p>
+          {isFetchingVentas && !isLoadingVentas && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Actualizando ventas...
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Switch
+            id="toggle-summary"
+            checked={showSummary}
+            onCheckedChange={setShowSummary}
           />
+          <Label
+            htmlFor="toggle-summary"
+            className="text-xs sm:text-sm text-muted-foreground"
+          >
+            Mostrar resumen del rango
+          </Label>
         </div>
       </div>
+
+      {/* Card Resumen */}
+      {showSummary && (
+        <Card className="border-primary/20 bg-primary/5 shadow-sm">
+          <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Resumen del rango seleccionado
+              </p>
+              <p className="text-sm">
+                {startDate && endDate
+                  ? `${format(startDate, "dd/MM/yyyy")} - ${format(
+                      endDate,
+                      "dd/MM/yyyy"
+                    )}`
+                  : "Selecciona un rango de fechas para ver el resumen"}
+              </p>
+            </div>
+
+            {summary && startDate && endDate ? (
+              <div className="flex gap-6 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Ventas</p>
+                  <p className="font-semibold">{summary.countInRange}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-semibold">
+                    {formatCurrency(summary.totalInRange)}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No hay datos suficientes para el resumen.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filtros */}
+      <Card className="shadow-sm">
+        <CardContent className="space-y-3 p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="filtro-texto" className="text-xs">
+                Buscar
+              </Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <Search className="h-4 w-4" />
+                </span>
+                <Input
+                  id="filtro-texto"
+                  placeholder="Filtrar por número de venta, nombre, teléfono, DPI, dirección..."
+                  value={filtroVenta}
+                  onChange={(e) => {
+                    setFiltroVenta(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-9 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Rango de fechas</Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <CalendarDays className="h-4 w-4" />
+                </span>
+                <DatePicker
+                  locale="es"
+                  selectsRange
+                  startDate={startDate || undefined}
+                  endDate={endDate || undefined}
+                  onChange={(update) => {
+                    setDateRange(update as [Date | null, Date | null]);
+                    setCurrentPage(1);
+                  }}
+                  isClearable
+                  placeholderText="Seleccionar rango de fechas"
+                  className="w-full rounded-md border bg-white px-9 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs text-muted-foreground">
+            <span>
+              {totalItems > 0
+                ? `Mostrando ${ventas.length} de ${totalItems} ventas filtradas`
+                : "No hay ventas para los filtros seleccionados"}
+            </span>
+            {(filtroVenta || startDate || endDate) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFiltroVenta("");
+                  setDateRange([null, null]);
+                  setCurrentPage(1);
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabla */}
       <Card className="shadow-xl">
-        <CardContent>
-          <ScrollArea className="h-[600px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID Venta</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Acciones</TableHead>
-                  <TableHead>Impresiones</TableHead>
-                  {/* <TableHead>Ticket</TableHead> */}
-
-                  <TableHead>Eliminar</TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {currentItems.map((venta) => (
-                  <TableRow key={venta.id}>
-                    <TableCell>#{venta.id}</TableCell>
-                    <TableCell>
-                      {venta.cliente
-                        ? venta.cliente.nombre
-                        : venta.nombreClienteFinal
-                        ? venta.nombreClienteFinal
-                        : "CF"}
-                    </TableCell>
-                    <TableCell>{formatearFecha(venta.fechaVenta)}</TableCell>
-                    <TableCell>
-                      {new Intl.NumberFormat("es-GT", {
-                        style: "currency",
-                        currency: "GTQ",
-                      }).format(venta.totalVenta)}
-                    </TableCell>
-
-                    {/* Acciones de venta */}
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              aria-label="Ver detalles de venta"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="w-full justify-center items-center max-w-2xl">
-                            <DetallesVenta venta={venta} />
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </TableCell>
-
-                    {/* Botones de impresión */}
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Link to={`/venta/generar-factura/${venta.id}`}>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  aria-label="Imprimir Comprobante"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Imprimir Comprobante</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        {/* <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Link
-                                to={`/garantía/generar-garantía/${venta.id}`}
-                              >
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  aria-label="Imprimir Garantía"
-                                >
-                                  <FileSpreadsheet className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Imprimir Garantía</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider> */}
-
-                        {/* GENERAR EL TICKET */}
-                      </div>
-                    </TableCell>
-
-                    {/* <TableCell className="flex justify-center items-center">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Link to={`/ticket/generar-ticket/${venta.id}`}>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                aria-label="Imprimir Garantía"
-                              >
-                                <Ticket className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Generar Ticket</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell> */}
-
-                    {/* GENERAR EL TICKER */}
-
-                    {/* Eliminar registro */}
-                    <TableCell>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Button
-                              disabled={
-                                ["CREDITO", "OTRO"].includes(
-                                  venta?.metodoPago?.metodoPago ?? ""
-                                ) || userRol !== "ADMIN"
-                              }
-                              onClick={() => {
-                                setVentaEliminar((datosPrevios) => ({
-                                  ...datosPrevios,
-                                  usuarioId: userId,
-                                  ventaId: venta?.id,
-                                  clienteId: Number(venta?.cliente?.id),
-                                  productos:
-                                    venta?.productos?.map((prod) => ({
-                                      cantidad: prod.cantidad,
-                                      precioVenta: prod.precioVenta,
-                                      productoId: prod.productoId,
-                                    })) || [],
-                                  totalVenta: venta?.totalVenta,
-                                }));
-                                setIsOpenDelete(true);
-                              }}
-                              variant="outline"
-                              size="icon"
-                              aria-label="Eliminar Venta"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Eliminar Registro</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[60vh] w-full">
+            <div className="min-w-[720px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID Venta</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Acciones</TableHead>
+                    <TableHead>Impresiones</TableHead>
+                    <TableHead>Eliminar</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+
+                <TableBody>
+                  {isLoadingVentas ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-6 text-center">
+                        Cargando ventas...
+                      </TableCell>
+                    </TableRow>
+                  ) : ventas.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-6 text-center">
+                        No se encontraron ventas con los filtros actuales
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    ventas.map((venta) => (
+                      <TableRow key={venta.id}>
+                        <TableCell>#{venta.id}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">
+                          {venta.cliente
+                            ? venta.cliente.nombre
+                            : venta.nombreClienteFinal
+                            ? venta.nombreClienteFinal
+                            : "CF"}
+                        </TableCell>
+                        <TableCell>
+                          {formatearFecha(venta.fechaVenta)}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(venta.totalVenta)}
+                        </TableCell>
+
+                        {/* Acciones */}
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  aria-label="Ver detalles de venta"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="flex max-w-2xl justify-center">
+                                <DetallesVenta venta={venta} />
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </TableCell>
+
+                        {/* Impresiones */}
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Link
+                                    to={`/venta/generar-factura/${venta.id}`}
+                                  >
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      aria-label="Imprimir Comprobante"
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                    </Button>
+                                  </Link>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Imprimir Comprobante</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </TableCell>
+
+                        {/* Eliminar */}
+                        <TableCell>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  disabled={
+                                    ["CREDITO", "OTRO"].includes(
+                                      venta?.metodoPago?.metodoPago ?? ""
+                                    ) || userRol !== "ADMIN"
+                                  }
+                                  onClick={() => {
+                                    setVentaEliminar((datosPrevios) => ({
+                                      ...datosPrevios,
+                                      usuarioId: userId,
+                                      ventaId: venta.id,
+                                      clienteId: Number(
+                                        venta?.cliente?.id ?? 0
+                                      ),
+                                      productos:
+                                        venta?.productos?.map((prod) => ({
+                                          cantidad: prod.cantidad,
+                                          precioVenta: prod.precioVenta,
+                                          productoId: prod.productoId,
+                                        })) || [],
+                                      totalVenta: venta.totalVenta,
+                                    }));
+                                    setIsOpenDelete(true);
+                                  }}
+                                  variant="outline"
+                                  size="icon"
+                                  aria-label="Eliminar Venta"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Eliminar registro</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </ScrollArea>
         </CardContent>
 
+        {/* Modal eliminar */}
         <Dialog onOpenChange={setIsOpenDelete} open={isOpenDelete}>
           <DialogContent>
             <DialogHeader>
@@ -596,7 +624,7 @@ export default function HistorialVentas() {
                 ¿Continuar?
               </DialogDescription>
             </DialogHeader>
-            <div className="">
+            <div className="space-y-2">
               <Textarea
                 placeholder="Escriba el motivo de la eliminación del registro"
                 className="mb-2"
@@ -609,114 +637,128 @@ export default function HistorialVentas() {
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 placeholder="Ingrese su contraseña como administrador para confirmar"
-              ></Input>
+              />
             </div>
             <div className="flex gap-2">
-              {/* Botón para cancelar */}
               <Button
                 className="w-full"
                 onClick={() => setIsOpenDelete(false)}
                 variant={"destructive"}
-                disabled={isDeleting} // Deshabilitar si está eliminando
+                disabled={isDeleting}
               >
                 Cancelar
               </Button>
 
-              {/* Botón para confirmar eliminación */}
               <Button
                 className="w-full"
                 variant={"default"}
                 onClick={handleDeleteSale}
-                disabled={isDeleting} // Deshabilitar mientras se procesa la solicitud
+                disabled={isDeleting}
               >
-                {isDeleting ? "Eliminando..." : "Sí, continúa y elimina"}{" "}
-                {/* Texto dinámico */}
+                {isDeleting ? "Eliminando..." : "Sí, continúa y elimina"}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
 
-        <div className="flex items-center justify-center py-4">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <Button onClick={() => onPageChange(1)}>Primero</Button>
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </PaginationPrevious>
-              </PaginationItem>
+        {/* Paginación server-side */}
+        {totalItems > 0 && (
+          <div className="flex items-center justify-center py-4">
+            <Pagination>
+              <PaginationContent className="flex flex-wrap items-center gap-1">
+                <PaginationItem>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleChangePage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    Primero
+                  </Button>
+                </PaginationItem>
 
-              {/* Sistema de truncado */}
-              {currentPage > 3 && (
-                <>
-                  <PaginationItem>
-                    <PaginationLink onClick={() => onPageChange(1)}>
-                      1
-                    </PaginationLink>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <span className="text-muted-foreground">...</span>
-                  </PaginationItem>
-                </>
-              )}
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() =>
+                      handleChangePage(Math.max(1, currentPage - 1))
+                    }
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </PaginationPrevious>
+                </PaginationItem>
 
-              {Array.from({ length: totalPages }, (_, index) => {
-                const page = index + 1;
-                if (
-                  page === currentPage ||
-                  (page >= currentPage - 1 && page <= currentPage + 1)
-                ) {
-                  return (
-                    <PaginationItem key={index}>
-                      <PaginationLink
-                        onClick={() => onPageChange(page)}
-                        isActive={page === currentPage}
-                      >
-                        {page}
+                {currentPage > 3 && (
+                  <>
+                    <PaginationItem>
+                      <PaginationLink onClick={() => handleChangePage(1)}>
+                        1
                       </PaginationLink>
                     </PaginationItem>
-                  );
-                }
-                return null;
-              })}
+                    <PaginationItem>
+                      <span className="text-muted-foreground">...</span>
+                    </PaginationItem>
+                  </>
+                )}
 
-              {currentPage < totalPages - 2 && (
-                <>
-                  <PaginationItem>
-                    <span className="text-muted-foreground">...</span>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationLink onClick={() => onPageChange(totalPages)}>
-                      {totalPages}
-                    </PaginationLink>
-                  </PaginationItem>
-                </>
-              )}
-
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    onPageChange(Math.min(totalPages, currentPage + 1))
+                {Array.from({ length: totalPages }, (_, index) => {
+                  const page = index + 1;
+                  if (
+                    page === currentPage ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => handleChangePage(page)}
+                          isActive={page === currentPage}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
                   }
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </PaginationNext>
-              </PaginationItem>
-              <PaginationItem>
-                <Button
-                  variant={"destructive"}
-                  onClick={() => onPageChange(totalPages)}
-                >
-                  Último
-                </Button>
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
+                  return null;
+                })}
+
+                {currentPage < totalPages - 2 && (
+                  <>
+                    <PaginationItem>
+                      <span className="text-muted-foreground">...</span>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationLink
+                        onClick={() => handleChangePage(totalPages)}
+                      >
+                        {totalPages}
+                      </PaginationLink>
+                    </PaginationItem>
+                  </>
+                )}
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() =>
+                      handleChangePage(Math.min(totalPages, currentPage + 1))
+                    }
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </PaginationNext>
+                </PaginationItem>
+
+                <PaginationItem>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleChangePage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Último
+                  </Button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </Card>
     </div>
   );

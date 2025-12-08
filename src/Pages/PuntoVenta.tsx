@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,13 +50,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import axios from "axios";
 import { toast } from "sonner";
-import { ProductosResponse } from "@/Types/Venta/ProductosResponse";
 import React from "react";
 import { useStore } from "@/components/Context/ContextSucursal";
 
-import SelectM from "react-select"; // Importación correcta de react-select
+import SelectM from "react-select";
 import { Link } from "react-router-dom";
 
 import dayjs from "dayjs";
@@ -66,6 +64,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
+// 🔑 NUEVOS HOOKS
+import {
+  useGetEmpaques,
+  useGetClientes,
+  useGetProductosBySucursal,
+} from "@/hooks/useHooks/useVentaQueries";
+import {
+  useCreatePriceRequest,
+  useCreateVenta,
+  Venta,
+} from "@/hooks/useHooks/useVentaMutations";
+
 dayjs.extend(localizedFormat);
 dayjs.locale("es");
 
@@ -73,9 +83,8 @@ function formatearFechaUTC(fecha: string) {
   return dayjs(fecha).format("DD/MM/YYYY hh:mm A");
 }
 
-const API_URL = import.meta.env.VITE_API_URL;
-
-//========================================>
+// ========================================>
+// Tipos locales para el componente
 type Stock = {
   id: number;
   cantidad: number;
@@ -92,60 +101,20 @@ type Producto = {
   id: number;
   nombre: string;
   descripcion: string;
-  precioVenta?: number; // Este campo no lo veo en el objeto, pero lo mencionas en el botón
+  precioVenta?: number;
   codigoProducto: string;
   creadoEn: string;
   actualizadoEn: string;
   stock: Stock[];
   precios: Precios[];
 };
+
 interface CartItem extends Producto {
-  quantity: number; // Cantidad del producto en el carrito
-  selectedPriceId: number; // ID del precio seleccionado
-  selectedPrice: number; // Precio para mostrar en el resumen
+  quantity: number;
+  selectedPriceId: number;
+  selectedPrice: number;
 }
 
-type Client = {
-  id: number;
-  nombre: string;
-  telefono: string;
-  dpi: string;
-  iPInternet: string;
-  direccion: string;
-  actualizadoEn: Date;
-};
-
-interface Venta {
-  id: number;
-  clienteId: number | null;
-  fechaVenta: string;
-  horaVenta: string;
-  totalVenta: number;
-  direccionClienteFinal: string | null;
-  nombreClienteFinal: string | null;
-  sucursalId: number;
-  telefonoClienteFinal: string | null;
-  imei: string;
-}
-
-export interface Empaque {
-  id: number;
-  nombre: string;
-  descripcion: string;
-  codigoProducto: string;
-  precioCosto: number | null;
-  precioVenta: number | null;
-  stock: StockEmpaque[];
-}
-
-export interface StockEmpaque {
-  id?: number;
-  cantidad?: number;
-  sucursal: {
-    id: number;
-    nombre: string;
-  };
-}
 interface Customer {
   id: number;
   nombre: string;
@@ -160,17 +129,79 @@ interface CustomerOption {
 
 export default function PuntoVenta() {
   const userId = useStore((state) => state.userId) ?? 0;
-  console.log("El id del user en el punto venta es: ", userId);
+  const rawSucursalId = useStore((state) => state.sucursalId);
+  const sucursalId = rawSucursalId ?? 0;
 
+  // =======================
+  // NUEVOS HOOKS DE DATA
+  // =======================
+  const {
+    data: productos = [],
+    // isLoading: isLoadingProductos,
+    // isFetching: isFetchingProductos,
+  } = useGetProductosBySucursal(rawSucursalId);
+
+  const {
+    data: empaques = [],
+    // isLoading: isLoadingEmpaques
+  } = useGetEmpaques();
+
+  const {
+    data: clients = [],
+    // isLoading: isLoadingClientes
+  } = useGetClientes();
+
+  // MUTATIONS
+  const { mutateAsync: createVenta, isPending: isCreatingVenta } =
+    useCreateVenta();
+
+  const { mutateAsync: createPriceRequest, isPending: isCreatingPriceRequest } =
+    useCreatePriceRequest();
+
+  // =======================
+  // ESTADO LOCAL
+  // =======================
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
-
-  const sucursalId = useStore((state) => state.sucursalId);
-
   const [paymentMethod, setPaymentMethod] = useState<string>("CONTADO");
 
-  console.log("El cart a enviar es: ", cart);
+  const [openSection, setOpenSection] = useState(false);
+  const [ventaResponse, setventaResponse] = useState<Venta | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [openEmpaques, setOpenEmpaques] = useState(false);
 
+  const [nombre, setNombre] = useState<string>("");
+  const [dpi, setDpi] = useState<string>("");
+  const [imei, setImei] = useState<string>("");
+
+  const [telefono, setTelefono] = useState<string>("");
+  const [direccion, setDireccion] = useState<string>("");
+
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    null
+  );
+  const [precioReques, setPrecioRequest] = useState<number | null>(null);
+  const [openReques, setOpenRequest] = useState(false);
+
+  const [selectedCustomerID, setSelectedCustomerID] = useState<Customer | null>(
+    null
+  );
+
+  const [activeTab, setActiveTab] = useState("existing");
+
+  const [empaquesUsados, setEmpaquesUsados] = useState<
+    { id: number; quantity: number }[]
+  >([]);
+
+  const [filterEmpaques, setFilterEmpaques] = useState<string>("");
+
+  const handleClose = () => {
+    setOpenSection(false);
+  };
+
+  // =======================
+  // LÓGICA CARRITO
+  // =======================
   const addToCart = (product: Producto) => {
     const existingItem = cart.find((item) => item.id === product.id);
 
@@ -183,14 +214,14 @@ export default function PuntoVenta() {
         )
       );
     } else {
-      const initialPriceId = product.precios[0]?.id; // Guardar solo el ID del primer precio
-      const initialPrice = product.precios[0]?.precio || 0; // Precio para mostrar en el resumen
+      const initialPriceId = product.precios[0]?.id;
+      const initialPrice = product.precios[0]?.precio || 0;
 
       const newCartItem: CartItem = {
         ...product,
         quantity: 1,
-        selectedPriceId: initialPriceId, // Cambiar a ID del precio
-        selectedPrice: initialPrice, // Mantener el precio para mostrar
+        selectedPriceId: initialPriceId,
+        selectedPrice: initialPrice,
       };
 
       setCart([...cart, newCartItem]);
@@ -220,153 +251,11 @@ export default function PuntoVenta() {
     setSearchTerm(event.target.value);
   };
 
-  const [openSection, setOpenSection] = useState(false);
-  const [ventaResponse, setventaResponse] = useState<Venta | null>(null);
-  const handleClose = () => {
-    setOpenSection(false);
-  };
-
-  const [isDisableButton, setIsDisableButton] = useState(false);
-
-  const handleCompleteSale = async () => {
-    // Deshabilitar el botón al iniciar el proceso
-    setIsDisableButton(true);
-
-    const saleData = {
-      usuarioId: userId,
-      sucursalId: sucursalId,
-      clienteId: selectedCustomerID?.id,
-      productos: cart.map((prod) => ({
-        productoId: prod.id,
-        cantidad: prod.quantity,
-        selectedPriceId: prod.selectedPriceId,
-      })),
-      empaques: empaquesUsados.map((pack) => ({
-        id: pack.id,
-        quantity: pack.quantity,
-      })),
-      metodoPago: paymentMethod || "CONTADO",
-      monto: cart.reduce(
-        (acc, prod) => acc + prod.selectedPrice * prod.quantity,
-        0
-      ),
-      nombre: nombre.trim(),
-      telefono: telefono.trim(),
-      direccion: direccion.trim(),
-      dpi: dpi.trim(),
-      // iPInternet: iPInternet.trim(),
-      imei: imei.trim(),
-    };
-
-    const isCustomerInfoProvided =
-      saleData.nombre && saleData.telefono && saleData.direccion;
-
-    if (
-      saleData.monto > 1000 &&
-      !saleData.clienteId &&
-      !isCustomerInfoProvided
-    ) {
-      toast.warning(
-        "Para ventas mayores a 1000 es necesario ingresar o seleccionar un cliente"
-      );
-      setIsDisableButton(false); // Rehabilitar el botón
-      return;
-    }
-
-    try {
-      const response = await axios.post(`${API_URL}/venta`, saleData);
-
-      if (response.status === 201 || response.status === 200) {
-        toast.success("Venta completada con éxito");
-        // Restablecer los estados y cerrar el diálogo
-        setIsDialogOpen(false);
-        setCart([]);
-        getProducts();
-        setImei("");
-        setventaResponse(response.data);
-        setSelectedCustomerID(null);
-        setNombre("");
-        setTelefono("");
-        setDireccion("");
-        setDpi("");
-        setTimeout(() => {
-          setOpenSection(true);
-        }, 1000);
-        setTimeout(() => {
-          setIsDisableButton(false);
-        }, 1000);
-        setEmpaquesUsados([]);
-        getEmpaques();
-      } else {
-        toast.error("Error al completar la venta");
-      }
-    } catch (error) {
-      toast.error("Ocurrió un error al completar la venta");
-      setIsDisableButton(false); // Rehabilitar el botón
-    }
-  };
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [openEmpaques, setOpenEmpaques] = useState(false);
-
-  const [productos, setProductos] = useState<ProductosResponse[]>([]);
-
-  const [empaques, setEmpaques] = useState<Empaque[]>([]);
-
-  console.log("los empaques son: ", empaques);
-
-  const getProducts = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/products/sucursal/${sucursalId}`
-      );
-      if (response.status === 200) {
-        setProductos(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("Error al obtener productos.");
-    }
-  };
-
-  const getEmpaques = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/empaque`);
-      if (response.status === 200) {
-        setEmpaques(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("Error al obtener productos.");
-    }
-  };
-
-  useEffect(() => {
-    if (sucursalId) {
-      // Verificar que sucursalId está disponible
-      getProducts();
-      getEmpaques();
-    }
-  }, [sucursalId]);
-  console.log("Los productos son: ", productos);
-
   const filteredProducts = productos.filter(
     (product) =>
       product.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.codigoProducto.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const [nombre, setNombre] = useState<string>("");
-  const [dpi, setDpi] = useState<string>("");
-  const [imei, setImei] = useState<string>("");
-
-  const [telefono, setTelefono] = useState<string>("");
-  const [direccion, setDireccion] = useState<string>("");
-  console.log("Los datos de cf final son: ", {
-    nombre,
-    telefono,
-    direccion,
-  });
 
   const updatePrice = (productId: number, newPrice: number) => {
     setCart((prevCart) =>
@@ -374,25 +263,20 @@ export default function PuntoVenta() {
         item.id === productId
           ? {
               ...item,
-              selectedPrice: newPrice, // Actualizamos el precio seleccionado
+              selectedPrice: newPrice,
               selectedPriceId:
                 item.precios.find((price) => price.precio === newPrice)?.id ||
-                item.selectedPriceId, // Actualiza el ID del precio seleccionado
+                item.selectedPriceId,
             }
           : item
       )
     );
   };
 
-  console.log("El cart a enviar es: ", cart);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null
-  );
-  const [precioReques, setPrecioRequest] = useState<number | null>(null);
-  const [openReques, setOpenRequest] = useState(false);
-
-  //==================================>
-  async function handleMakeRequest() {
+  // =======================
+  // PRICE REQUEST
+  // =======================
+  const handleMakeRequest = async () => {
     if (precioReques && precioReques <= 0) {
       toast.info("La cantidad a solicitar no debe ser negativa");
       return;
@@ -404,82 +288,52 @@ export default function PuntoVenta() {
     }
 
     try {
-      const response = await axios.post(`${API_URL}/price-request`, {
+      await createPriceRequest({
         productoId: Number(selectedProductId),
         precioSolicitado: precioReques,
         solicitadoPorId: userId,
       });
-      if (response.status === 201) {
-        toast.success(
-          "Solicitud enviada, esperando respuesta del administrador..."
-        );
-        setPrecioRequest(null);
-        setSelectedProductId("");
-        setOpenRequest(false);
-      }
+
+      toast.success(
+        "Solicitud enviada, esperando respuesta del administrador..."
+      );
+      setPrecioRequest(null);
+      setSelectedProductId("");
+      setOpenRequest(false);
     } catch (error) {
       console.log(error);
       toast.error("Algo salió mal");
-      // setOpenRequest(false)
     }
-  }
+  };
 
-  console.log("El cart a enviar es: ", cart);
-
-  // Cambiar el tipo a Customer | null
-  const [selectedCustomerID, setSelectedCustomerID] = useState<Customer | null>(
-    null
-  );
-  // Actualizar el manejador de cambio
+  // =======================
+  // CLIENTES (react-select)
+  // =======================
   const handleChange = (selectedOption: CustomerOption | null) => {
-    // Encuentra el cliente correspondiente
     const selectedCustomer = selectedOption
       ? clients.find((customer) => customer.id === selectedOption.value) || null
       : null;
     setSelectedCustomerID(selectedCustomer);
   };
 
-  console.log("EL id del cliente seleccionado es: ", selectedCustomerID?.id);
-
-  const [clients, setClients] = useState<Client[]>([]);
-  // Mapeo de clientes a un formato compatible con react-select
   const customerOptions = clients.map((customer) => ({
-    value: customer.id, // Este será el ID del cliente
+    value: customer.id,
     label: `${customer.nombre} ${
       customer.telefono ? `(${customer.telefono})` : ""
-    } ${customer.dpi ? `DPI: ${customer.dpi}` : ""}
-    ${customer.iPInternet ? `IP: ${customer.iPInternet}` : ""}
-    `, // Formato de presentación
+    } ${customer.dpi ? `DPI: ${customer.dpi}` : ""} ${
+      (customer as any).iPInternet ? `IP: ${(customer as any).iPInternet}` : ""
+    }`,
   }));
 
-  useEffect(() => {
-    const getCustomers = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/client/get-all-customers`);
-
-        if (response.status === 200) {
-          setClients(response.data);
-        }
-      } catch (error) {
-        console.log(error);
-        toast.error("Error al conseguir clientes previos");
-      }
-    };
-    getCustomers();
-  }, []);
-
+  // =======================
+  // FORMATO
+  // =======================
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-GT", {
       style: "currency",
       currency: "GTQ",
     }).format(amount);
   };
-
-  const [activeTab, setActiveTab] = useState("existing");
-  // Asegúrate de tener esto en tu estado
-  const [empaquesUsados, setEmpaquesUsados] = useState<
-    { id: number; quantity: number }[]
-  >([]);
 
   const updateEmpaqueQuantity = (id: number, quantity: number) => {
     setEmpaquesUsados((prev) => {
@@ -504,7 +358,6 @@ export default function PuntoVenta() {
   );
 
   const totalProductos = cart.reduce((total, acc) => total + acc.quantity, 0);
-  const [filterEmpaques, setFilterEmpaques] = useState<string>("");
 
   const filteredEmpaques = useMemo(() => {
     const estandarFilter = filterEmpaques.toLocaleLowerCase().trim();
@@ -517,8 +370,80 @@ export default function PuntoVenta() {
     return matchesFiltered;
   }, [filterEmpaques, empaques]);
 
+  // =======================
+  // COMPLETAR VENTA (mutation)
+  // =======================
+  const handleCompleteSale = async () => {
+    const saleData = {
+      usuarioId: userId,
+      sucursalId: rawSucursalId ?? null,
+      clienteId: selectedCustomerID?.id ?? null,
+      productos: cart.map((prod) => ({
+        productoId: prod.id,
+        cantidad: prod.quantity,
+        selectedPriceId: prod.selectedPriceId,
+      })),
+      empaques: empaquesUsados.map((pack) => ({
+        id: pack.id,
+        quantity: pack.quantity,
+      })),
+      metodoPago: paymentMethod || "CONTADO",
+      monto: cart.reduce(
+        (acc, prod) => acc + prod.selectedPrice * prod.quantity,
+        0
+      ),
+      nombre: nombre.trim(),
+      telefono: telefono.trim(),
+      direccion: direccion.trim(),
+      dpi: dpi.trim(),
+      imei: imei.trim(),
+    };
+
+    const isCustomerInfoProvided =
+      saleData.nombre && saleData.telefono && saleData.direccion;
+
+    if (
+      saleData.monto > 1000 &&
+      !saleData.clienteId &&
+      !isCustomerInfoProvided
+    ) {
+      toast.warning(
+        "Para ventas mayores a 1000 es necesario ingresar o seleccionar un cliente"
+      );
+      return;
+    }
+
+    try {
+      const ventaCreada = await createVenta(saleData);
+
+      toast.success("Venta completada con éxito");
+      setIsDialogOpen(false);
+      setCart([]);
+      setImei("");
+      setventaResponse(ventaCreada);
+      setSelectedCustomerID(null);
+      setNombre("");
+      setTelefono("");
+      setDireccion("");
+      setDpi("");
+      setEmpaquesUsados([]);
+      setOpenEmpaques(false);
+
+      setTimeout(() => {
+        setOpenSection(true);
+      }, 1000);
+    } catch (error) {
+      console.log(error);
+      toast.error("Ocurrió un error al completar la venta");
+    }
+  };
+
+  // =======================
+  // RENDER
+  // =======================
   return (
-    <div className="container  ">
+    <div className="container">
+      {/* Dialog venta registrada */}
       <Dialog open={openSection} onOpenChange={setOpenSection}>
         <DialogContent className="max-w-md border-[#e2b7b8] dark:border-[#7b2c7d] shadow-lg">
           <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
@@ -597,7 +522,9 @@ export default function PuntoVenta() {
           </div>
         </DialogContent>
       </Dialog>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {/* LISTA PRODUCTOS */}
         <div className="space-y-1">
           <Card className="shadow-xl ">
             <CardContent className="p-2">
@@ -607,11 +534,9 @@ export default function PuntoVenta() {
                   placeholder="Buscar por nombre o código..."
                   value={searchTerm}
                   onChange={handleSearch}
-                  className="text-sm py-1" // Reduce padding en el input
+                  className="text-sm py-1"
                 />
                 <Button variant="outline" size="icon" className="h-10 w-10">
-                  {" "}
-                  {/* Ajusta el tamaño del botón */}
                   <Barcode className="h-4 w-4" />
                 </Button>
               </div>
@@ -632,12 +557,10 @@ export default function PuntoVenta() {
                 <TableBody>
                   {filteredProducts.map((product) => (
                     <TableRow key={product.id}>
-                      {/* Nombre del producto */}
                       <TableCell>
                         <p style={{ fontSize: "12px" }}>{product.nombre}</p>
                       </TableCell>
 
-                      {/* Precio del producto */}
                       <TableCell>
                         <p style={{ fontSize: "13px" }}>
                           {product.precios
@@ -651,10 +574,8 @@ export default function PuntoVenta() {
                         </p>
                       </TableCell>
 
-                      {/* Verificación de existencia de stock */}
                       {product.stock && product.stock.length > 0 ? (
                         <>
-                          {/* Cantidad total de stock */}
                           <TableCell>
                             {product.stock.some(
                               (stock) => stock.cantidad > 0
@@ -670,23 +591,13 @@ export default function PuntoVenta() {
                             )}
                           </TableCell>
 
-                          {/* Botón para añadir al carrito (solo un botón) */}
                           <TableCell>
                             <Button
                               className={cn(
-                                // Estilos base
                                 "transition-all duration-300",
-
-                                // Modo claro (default)
                                 "bg-[#e2b7b8] hover:bg-[#d19fa0] text-[#7b2c7d]",
-
-                                // Modo oscuro
                                 "dark:bg-[#7b2c7d] dark:hover:bg-[#9a3c9c] dark:text-[#f5d0d1]",
-
-                                // Estado deshabilitado en modo claro
                                 "disabled:bg-[#e2b7b8]/50 disabled:text-[#7b2c7d]/50 disabled:hover:bg-[#e2b7b8]/50",
-
-                                // Estado deshabilitado en modo oscuro
                                 "dark:disabled:bg-[#7b2c7d]/50 dark:disabled:text-[#f5d0d1]/50 dark:disabled:hover:bg-[#7b2c7d]/50"
                               )}
                               onClick={() =>
@@ -709,7 +620,6 @@ export default function PuntoVenta() {
                           </TableCell>
                         </>
                       ) : (
-                        // Caso cuando no hay stock disponible
                         <TableCell colSpan={3} className="text-center">
                           Sin stock disponible
                         </TableCell>
@@ -722,8 +632,10 @@ export default function PuntoVenta() {
           </Card>
         </div>
 
+        {/* CARRITO + CLIENTE */}
         <div className="space-y-2 ">
-          <Card className="flex flex-col h-80 shadow-md  ">
+          {/* CARRITO */}
+          <Card className="flex flex-col h-80 shadow-md">
             <div className="p-3 border-b flex items-center justify-between">
               <h3 className="font-medium flex items-center gap-2">
                 <ShoppingBag className="h-4 w-4 dark:text-white" />
@@ -896,7 +808,7 @@ export default function PuntoVenta() {
                     </Button>
 
                     <Button
-                      disabled={isDisableButton}
+                      disabled={isCreatingVenta}
                       onClick={handleCompleteSale}
                       className="w-full transition-all duration-300 bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white shadow-md hover:shadow-lg dark:from-[#e2b7b8] dark:to-[#d19fa0] dark:text-[#7b2c7d] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                       size="sm"
@@ -908,6 +820,7 @@ export default function PuntoVenta() {
                 </DialogContent>
               </Dialog>
 
+              {/* DIALOG EMPAQUES */}
               <Dialog open={openEmpaques} onOpenChange={setOpenEmpaques}>
                 <DialogContent className="max-w-5xl h-[95%] border-[#e2b7b8] dark:border-[#7b2c7d] shadow-lg flex flex-col">
                   <div className="pb-1 bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] dark:from-[#e2b7b8] dark:to-[#d19fa0] p-[0.35rem] rounded-t-lg">
@@ -1006,7 +919,6 @@ export default function PuntoVenta() {
                                   type="number"
                                   min={0}
                                   max={maxPackage}
-                                  // value={empaque.stock[0].cantidad || 0}
                                   onChange={(e) =>
                                     updateEmpaqueQuantity(
                                       empaque.id,
@@ -1022,7 +934,6 @@ export default function PuntoVenta() {
                       </div>
                     </div>
 
-                    {/* Right side: Selected packaging section */}
                     <div className="p-4 md:w-1/2 w-full">
                       <h4 className="text-sm font-medium text-[#7b2c7d] dark:text-[#e2b7b8] mb-2">
                         Empaques seleccionados {totalEmpuesSeleccionados}
@@ -1043,17 +954,14 @@ export default function PuntoVenta() {
                                       key={index}
                                       className="grid grid-cols-[1fr_auto_auto] items-center py-2 px-3 text-sm rounded hover:bg-slate-50 dark:hover:bg-slate-800 border-b last:border-b-0 gap-2"
                                     >
-                                      {/* Nombre del empaque */}
                                       <span className="text-[#7b2c7d] dark:text-[#e2b7b8] font-medium truncate">
                                         {empaque?.nombre}
                                       </span>
 
-                                      {/* Cantidad */}
                                       <span className="bg-[#7b2c7d]/10 dark:bg-[#e2b7b8]/10 px-3 py-1 rounded-full text-[#7b2c7d] dark:text-[#e2b7b8] font-medium text-center min-w-[2.5rem]">
                                         {pack.quantity}
                                       </span>
 
-                                      {/* Botón eliminar */}
                                       <Button
                                         className="w-7 h-7 p-0"
                                         variant="outline"
@@ -1073,7 +981,6 @@ export default function PuntoVenta() {
                             <ShoppingBag className="h-12 w-12 text-muted-foreground/30 mt-2" />
                           </div>
                         )}
-                        {/* Spacer div to ensure last item is fully visible */}
                         <div className="h-2"></div>
                       </div>
                     </div>
@@ -1092,11 +999,10 @@ export default function PuntoVenta() {
                     </Button>
 
                     <Button
-                      disabled={isDisableButton}
+                      disabled={isCreatingVenta}
                       onClick={() => {
                         setOpenEmpaques(false);
                         setIsDialogOpen(true);
-                        // handleCompleteSale();
                       }}
                       className="w-full transition-all duration-300 bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white shadow-md hover:shadow-lg dark:from-[#e2b7b8] dark:to-[#d19fa0] dark:text-[#7b2c7d] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                       size="sm"
@@ -1109,10 +1015,11 @@ export default function PuntoVenta() {
               </Dialog>
             </CardFooter>
           </Card>
+
+          {/* CLIENTE + MÉTODO DE PAGO */}
           <Card className="shadow-md ">
             <CardContent className="p-2">
               <div className="space-y-2">
-                {/* Método de pago */}
                 <div className="grid grid-cols-3 gap-2 items-center">
                   <Label htmlFor="payment-method" className="text-xs">
                     Método de Pago
@@ -1265,7 +1172,8 @@ export default function PuntoVenta() {
           </Card>
         </div>
       </div>
-      {/* seleccionar precio especial::::::::::::::::::::::*/}
+
+      {/* PETICIÓN PRECIO ESPECIAL */}
       <div className="mt-20">
         <Card className="shadow-xl">
           <CardHeader>
@@ -1292,7 +1200,7 @@ export default function PuntoVenta() {
                   classNamePrefix="select"
                   onChange={(selectedOption) => {
                     if (selectedOption) {
-                      setSelectedProductId(selectedOption.value); // Almacena solo el ID
+                      setSelectedProductId(selectedOption.value);
                     }
                   }}
                   value={
@@ -1311,7 +1219,7 @@ export default function PuntoVenta() {
                             )?.codigoProducto
                           })`,
                         }
-                      : null // Select vacío si no hay selección
+                      : null
                   }
                 />
               </div>
@@ -1353,10 +1261,14 @@ export default function PuntoVenta() {
                 </DialogHeader>
                 <div className="flex justify-end gap-2">
                   <Button
-                    disabled={!precioReques && !selectedProductId}
+                    disabled={
+                      !precioReques ||
+                      !selectedProductId ||
+                      isCreatingPriceRequest
+                    }
                     variant={"default"}
                     className="w-full"
-                    onClick={() => handleMakeRequest()}
+                    onClick={handleMakeRequest}
                   >
                     Solicitar
                   </Button>

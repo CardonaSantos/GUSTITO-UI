@@ -93,19 +93,16 @@ export default function Layout2({ children }: LayoutProps) {
   const setRol = useStore((state) => state.setRol);
   const setSucursalId = useStore((state) => state.setSucursalId);
 
-  // Store POS values
   const posNombre = useStore((state) => state.userNombre);
   const posCorreo = useStore((state) => state.userCorreo);
   const sucursalId = useStore((state) => state.sucursalId);
   const userID = useStore((state) => state.userId);
 
-  // Local state
   const socket = useSocket();
   const [sucursalInfo, setSucursalInfo] = useState<Sucursal>();
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-  // Decodificar y setear datos del POS al iniciar
   useEffect(() => {
     const token = localStorage.getItem("authTokenPos");
     if (!token) return;
@@ -129,7 +126,6 @@ export default function Layout2({ children }: LayoutProps) {
     setSucursalId,
   ]);
 
-  // Obtener datos de usuario del backend cuando cambie el userID
   useEffect(() => {
     if (!userID) return;
     const fetchUser = async () => {
@@ -166,12 +162,10 @@ export default function Layout2({ children }: LayoutProps) {
     }
   };
 
-  // Cargar notificaciones cuando cambie userID
   useEffect(() => {
     getNotificaciones();
   }, [userID]);
 
-  // Escuchar nuevas notificaciones via socket
   useEffect(() => {
     if (!socket) return;
     const handler = (nueva: Notificacion) => {
@@ -183,7 +177,6 @@ export default function Layout2({ children }: LayoutProps) {
     };
   }, [socket]);
 
-  // Eliminar notificación
   const deleteNoti = async (id: number) => {
     try {
       await axios.delete(
@@ -197,15 +190,12 @@ export default function Layout2({ children }: LayoutProps) {
     }
   };
 
-  // Logout POS
   const handleLogout = () => {
     localStorage.removeItem("authTokenPos");
     toast.info("Sesión cerrada");
     window.location.reload();
   };
-  const logoClasses = "h-20 w-20 md:h-24 md:w-24";
 
-  // Datos finales del usuario a mostrar (backend > store)
   const nombreUsuario = usuario?.nombre || posNombre || "??";
   const correoUsuario = usuario?.correo || posCorreo || "??";
 
@@ -214,28 +204,38 @@ export default function Layout2({ children }: LayoutProps) {
       <SidebarProvider>
         <AppSidebar />
 
-        {/* Contenedor principal para el toolbar y el contenido */}
-        <div className="flex flex-col w-full">
-          {/* Toolbar */}
-          <header className="sticky top-0 z-10 h-16 w-full bg-background border-b shadow-sm flex items-center justify-between px-4">
-            <div className="flex items-center space-x-2">
-              <Link to="/">
-                <img src={sandyLogo} alt="Logo" className={logoClasses} />
+        {/* Contenedor principal */}
+        <div className="flex w-full flex-col">
+          {/* Toolbar compacto con trigger de sidebar */}
+          <header className="sticky top-0 z-10 flex h-14 w-full items-center justify-between border-b bg-background/95 px-3 shadow-sm backdrop-blur">
+            <div className="flex items-center gap-2">
+              {/* Trigger del sidebar en el topbar */}
+              <SidebarTrigger className="mr-1" />
+
+              <Link to="/" className="flex items-center gap-2">
+                <img
+                  src={sandyLogo}
+                  alt="Logo"
+                  className="h-16 w-16 md:h-16 md:w-16"
+                />
+                <p className="hidden text-xs font-semibold text-foreground sm:inline md:text-sm">
+                  {sucursalInfo?.nombre || ""}
+                </p>
               </Link>
-              <p className="text-xs font-semibold text-foreground sm:text-sm md:text-base">
-                {sucursalInfo?.nombre || ""}
-              </p>
             </div>
-            <div className="flex items-center space-x-2">
+
+            <div className="flex items-center gap-2">
               <ModeToggle />
+
+              {/* Notificaciones */}
               <Dialog>
                 <DialogTrigger asChild>
                   <div className="relative">
                     <Button variant="outline" size="icon">
-                      <Bell className="h-6 w-6" />
+                      <Bell className="h-5 w-5" />
                     </Button>
                     {notificaciones.length > 0 && (
-                      <span className="absolute top-0 right-0 inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-primary-foreground bg-rose-500 rounded-full">
+                      <span className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-primary-foreground">
                         {notificaciones.length}
                       </span>
                     )}
@@ -247,10 +247,9 @@ export default function Layout2({ children }: LayoutProps) {
                       Notificaciones
                     </DialogTitle>
                   </DialogHeader>
-                  <div className="py-4 overflow-y-auto max-h-96">
+                  <div className="max-h-96 overflow-y-auto py-4">
                     {notificaciones.length > 0 ? (
                       notificaciones.map((not) => {
-                        // Determine icon and color based on notification type
                         let icon;
                         let bgColor;
                         let borderColor;
@@ -286,7 +285,7 @@ export default function Layout2({ children }: LayoutProps) {
                         return (
                           <Card
                             key={not.id}
-                            className={`m-2 shadow-sm transition-all hover:shadow-md ${bgColor} border-l-4 ${borderColor}`}
+                            className={`m-2 border-l-4 ${bgColor} ${borderColor} shadow-sm transition-all hover:shadow-md`}
                           >
                             <CardContent className="p-3">
                               <div className="flex items-start gap-3">
@@ -311,11 +310,11 @@ export default function Layout2({ children }: LayoutProps) {
                                       <X className="h-4 w-4" />
                                     </Button>
                                   </div>
-                                  <p className="text-sm font-medium break-words">
+                                  <p className="break-words text-sm font-medium">
                                     {not.mensaje}
                                   </p>
-                                  <div className="flex items-center mt-2 text-xs text-muted-foreground">
-                                    <CalendarClock className="h-3.5 w-3.5 mr-1" />
+                                  <div className="mt-2 flex items-center text-xs text-muted-foreground">
+                                    <CalendarClock className="mr-1 h-3.5 w-3.5" />
                                     {formatearFecha(not.fechaCreacion)}
                                   </div>
                                 </div>
@@ -326,7 +325,7 @@ export default function Layout2({ children }: LayoutProps) {
                       })
                     ) : (
                       <div className="flex flex-col items-center justify-center py-8 text-center">
-                        <Bell className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                        <Bell className="mb-3 h-12 w-12 text-muted-foreground/50" />
                         <p className="text-muted-foreground">
                           No hay notificaciones.
                         </p>
@@ -335,6 +334,8 @@ export default function Layout2({ children }: LayoutProps) {
                   </div>
                 </DialogContent>
               </Dialog>
+
+              {/* Usuario */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -342,13 +343,12 @@ export default function Layout2({ children }: LayoutProps) {
                     size="icon"
                     className="rounded-full"
                   >
-                    <User className="h-5 w-5" />
-                    <span className="sr-only">User menu</span>
-                    <Avatar className="bg-[#e2b7b8] border-2 border-transparent dark:border-white dark:bg-transparent">
-                      <AvatarFallback className="bg-[#823d81] text-white font-bold dark:bg-transparent dark:text-[#e2b7b8]">
+                    <Avatar className="border-2 border-transparent bg-[#e2b7b8] dark:border-white dark:bg-transparent">
+                      <AvatarFallback className="bg-[#823d81] font-bold text-white dark:bg-transparent dark:text-[#e2b7b8]">
                         {nombreUsuario?.slice(0, 2).toUpperCase() || "??"}
                       </AvatarFallback>
                     </Avatar>
+                    <span className="sr-only">User menu</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -369,14 +369,13 @@ export default function Layout2({ children }: LayoutProps) {
             </div>
           </header>
 
-          {/* Contenido principal */}
-          <main className="flex-1 overflow-y-auto p-1 lg:p-8">
-            <SidebarTrigger />
+          {/* Contenido principal (sin SidebarTrigger aquí) */}
+          <main className="flex-1 overflow-y-auto px-2 py-2 md:px-4 md:py-4 lg:px-6 lg:py-6">
             {children || <Outlet />}
           </main>
 
           {/* Footer */}
-          <footer className="bg-background py-4 text-center text-sm text-muted-foreground border-t border-border">
+          <footer className="border-t border-border bg-background py-3 text-center text-xs text-muted-foreground md:text-sm">
             <p>&copy; 2024 Novas Sistemas. Todos los derechos reservados</p>
           </footer>
         </div>

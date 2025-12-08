@@ -65,6 +65,7 @@ import { useEffect } from "react";
 
 import InventarioEmpaques from "./Pages/InventarioEmpaques/InventarioEmpaques";
 import StockEditEmpaque from "./Pages/InventarioEmpaques/StockEditEmpaque";
+import AnalitycsMainPage from "./Pages/Analytics/page";
 // import { RedirectToDashboard } from "./components/Auth/RedirectToDashboard";
 
 function App() {
@@ -130,6 +131,15 @@ function App() {
                 <ProtectedRoute>
                   <PuntoVenta />
                 </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/analisis"
+              element={
+                <ProtectRouteAdmin>
+                  <AnalitycsMainPage />
+                </ProtectRouteAdmin>
               }
             />
 

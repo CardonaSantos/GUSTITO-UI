@@ -56,17 +56,14 @@ export default function CrmDashboard() {
   // Función para obtener los datos del dashboard desde el backend
   const fetchDashboardData = async () => {
     try {
-      // Hacemos la solicitud GET al servicio de NestJS
       const response = await axios.get(
         `${VITE_CRM_API_URL}/dashboard/get-dashboard-data`
-      ); // Asegúrate de que esta URL esté correcta
+      );
       if (response.status === 200) {
-        // Si la respuesta es exitosa, almacenamos los datos en el estado
         const data: DashboardData = await response.data;
         setDashboardData(data);
       }
     } catch (err) {
-      // Manejo de errores si la solicitud falla
       console.error(err);
     }
   };

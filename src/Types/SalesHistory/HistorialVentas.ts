@@ -66,3 +66,14 @@ export interface Venta {
 
 export type VentasHistorial = Venta[];
 export type VentaHistorialPDF = Venta;
+export interface VentasSucursalPaginatedResponse {
+  items: VentasHistorial;
+  totalItems: number;
+  totalPages: number;
+  page: number;
+  pageSize: number;
+  summary: {
+    totalInRange: number;
+    countInRange: number;
+  } | null;
+}

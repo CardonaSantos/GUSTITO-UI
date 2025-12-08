@@ -1,43 +1,60 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+import SelectM from "react-select";
 import { toast } from "sonner";
-import axios from "axios";
-import { useParams } from "react-router-dom";
-import SelectM from "react-select"; // Importar react-select
+
 import { useStore } from "@/components/Context/ContextSucursal";
-const API_URL = import.meta.env.VITE_API_URL;
 
-type Category = {
-  id: number;
-  nombre: string;
-};
+import {
+  useGetProduct,
+  useGetCategories,
+} from "@/hooks/useHooks/useProductQueries";
+import { useUpdateProduct } from "@/hooks/useHooks/useProductMutations";
+import {
+  Category,
+  ProductPrice,
+  ProductToEdit,
+  UpdateProductDto,
+} from "./productToEdit.interface";
 
-type Precios = {
-  id: number;
-  precio: number;
-};
-
-type Product = {
-  id: number;
-  nombre: string;
-  descripcion: string;
-  precioVenta: number;
-  codigoProducto: string;
-  creadoEn: string;
-  actualizadoEn: string;
-  categorias: Category[]; // Categorías como un array de objetos
-  precios: Precios[];
-  precioCostoActual: number;
-};
+type PriceForm = ProductPrice; // alias mental
 
 export default function ProductEditForm() {
   const { id } = useParams();
-  const [formData, setFormData] = useState<Product | null>(null);
-  const usuarioId = useStore((state) => state.userId);
-  // Actualizar los campos del formulario
+  const productId = Number(id);
+  const usuarioId = useStore((state) => state.userId) ?? 0;
+
+  const { data: product, isLoading: isLoadingProduct } = useGetProduct(
+    Number.isNaN(productId) ? undefined : productId
+  );
+  const { data: categories = [], isLoading: isLoadingCategories } =
+    useGetCategories();
+
+  const { mutateAsync: updateProduct, isPending: isUpdating } =
+    useUpdateProduct(productId);
+
+  const [formData, setFormData] = useState<ProductToEdit | null>(null);
+
+  // Inicializar formData cuando llega el producto
+  useEffect(() => {
+    if (product) {
+      setFormData({
+        ...product,
+        precios: product.precios.map((p) => ({
+          id: p.id,
+          precio: p.precio,
+          orden: p.orden ?? 1,
+        })),
+      });
+    }
+  }, [product]);
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -45,91 +62,199 @@ export default function ProductEditForm() {
     setFormData((prev) => (prev ? { ...prev, [name]: value } : prev));
   };
 
-  // Function to handle price changes for specific indexes
-  const handlePriceChange =
+  // Actualizar precio
+  const handlePriceValueChange =
     (index: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = parseFloat(e.target.value);
+      const raw = e.target.value;
+      const value = raw === "" ? "" : Number(raw);
+
       setFormData((prev) => {
-        if (!prev) return prev; // Prevent updates if prev is null
-        const updatedPrices = [...prev.precios]; // Create a copy of the current prices
-        if (updatedPrices[index]) {
-          updatedPrices[index].precio = isNaN(value) ? 0 : value; // Update the correct price
-        } else {
-          // In case there's no price object at this index, create one
-          updatedPrices[index] = { id: 0, precio: isNaN(value) ? 0 : value }; // Adjust id as needed
-        }
-        return { ...prev, precios: updatedPrices }; // Return updated formData
+        if (!prev) return prev;
+        const updated = [...prev.precios];
+        const current = updated[index];
+
+        if (!current) return prev;
+
+        updated[index] = {
+          ...current,
+          precio: typeof value === "number" && !Number.isNaN(value) ? value : 0,
+        };
+
+        return { ...prev, precios: updated };
       });
     };
 
-  // Enviar el formulario
+  // Actualizar orden
+  const handlePriceOrderChange =
+    (index: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = Number(e.target.value);
+      setFormData((prev) => {
+        if (!prev) return prev;
+        const updated = [...prev.precios];
+        const current = updated[index];
+        if (!current) return prev;
+
+        updated[index] = {
+          ...current,
+          orden: Number.isNaN(value) ? current.orden : value,
+        };
+
+        return { ...prev, precios: updated };
+      });
+    };
+
+  // Marcar/eliminar un precio
+  const handleDeletePrice = (index: number) => {
+    setFormData((prev) => {
+      if (!prev) return prev;
+      const updated = [...prev.precios];
+      const price = updated[index];
+      if (!price) return prev;
+
+      if (price.id) {
+        // existe en la BD → marcar para eliminar
+        updated[index] = {
+          ...price,
+          eliminar: true,
+        };
+      } else {
+        // nuevo aún no en BD → lo quitamos de la lista
+        updated.splice(index, 1);
+      }
+
+      return { ...prev, precios: updated };
+    });
+  };
+
+  // Añadir un nuevo precio
+  const handleAddPrice = () => {
+    setFormData((prev) => {
+      if (!prev) return prev;
+      const nextOrden =
+        prev.precios.length > 0
+          ? Math.max(...prev.precios.map((p) => p.orden ?? 0)) + 1
+          : 1;
+
+      const nuevoPrecio: PriceForm = {
+        id: 0,
+        precio: 0,
+        orden: nextOrden,
+      };
+
+      return {
+        ...prev,
+        precios: [...prev.precios, nuevoPrecio],
+      };
+    });
+  };
+
+  // Enviar formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const response = await axios.patch(
-        `${API_URL}/products/actualizar/producto/${id}`,
-        {
-          ...formData, // Aquí estás incluyendo todos los campos del formData
-          categorias: formData?.categorias.map((cat) => cat.id), // Mapeo de categorías a solo sus IDs
-          usuarioId: usuarioId,
-        }
-      );
-      if (response.status === 200) {
-        toast.success("Producto actualizado exitosamente.");
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al actualizar el producto.");
+    if (!formData) return;
+
+    if (!formData.nombre || !formData.nombre.trim()) {
+      toast.error("El nombre del producto es obligatorio.");
+      return;
     }
-  };
 
-  // Obtener el producto existente para editar
-  const getProducto = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/products/product/get-one-product/${id}`
-      );
-      if (response.status === 200) {
-        console.log("data: ", response.data);
-
-        setFormData(response.data);
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al cargar el producto.");
+    if (!formData.codigoProducto || !formData.codigoProducto.trim()) {
+      toast.error("El código del producto es obligatorio.");
+      return;
     }
+
+    const costo = Number(formData.precioCostoActual);
+    if (Number.isNaN(costo) || costo < 0) {
+      toast.error("El precio de costo debe ser un número mayor o igual a 0.");
+      return;
+    }
+
+    if (!formData.categorias || formData.categorias.length === 0) {
+      toast.error("Debes seleccionar al menos una categoría.");
+      return;
+    }
+
+    const preciosActivos = formData.precios.filter((p) => !p.eliminar);
+
+    if (preciosActivos.length === 0) {
+      toast.error("Debes definir al menos un precio para el producto.");
+      return;
+    }
+
+    const invalidPrice = preciosActivos.find((p) => {
+      const valor = Number(p.precio);
+      return Number.isNaN(valor) || valor <= 0;
+    });
+
+    if (invalidPrice) {
+      toast.error("Todos los precios deben ser números mayores a 0.");
+      return;
+    }
+
+    const invalidOrder = preciosActivos.find((p) => {
+      const orden = Number(p.orden);
+      return Number.isNaN(orden) || orden < 1 || !Number.isInteger(orden);
+    });
+
+    if (invalidOrder) {
+      toast.error(
+        "Todos los órdenes de los precios deben ser números enteros mayores o iguales a 1."
+      );
+      return;
+    }
+
+    const ordenes = preciosActivos.map((p) => Number(p.orden));
+    const hasDuplicateOrders = new Set(ordenes).size !== ordenes.length;
+
+    if (hasDuplicateOrders) {
+      toast.error("Los órdenes de los precios no pueden repetirse.");
+      return;
+    }
+
+    // ---------- Construir payload limpio ----------
+    const payload: UpdateProductDto = {
+      codigoProducto: formData.codigoProducto.trim(),
+      nombre: formData.nombre.trim(),
+      descripcion: formData.descripcion?.trim(),
+      precioCostoActual: costo,
+      categorias: formData.categorias.map((c) => c.id),
+      usuarioId,
+      precios: formData.precios.map((p) => ({
+        id: p.id || undefined,
+        precio: Number(p.precio),
+        orden: Number(p.orden ?? 1),
+        eliminar: p.eliminar ?? false,
+      })),
+    };
+
+    // ---------- Llamada con toast.promise ----------
+    await toast.promise(updateProduct(payload), {
+      loading: "Actualizando producto...",
+      success: "Producto actualizado exitosamente.",
+      error: "Error al actualizar el producto.",
+    });
   };
 
-  // Cargar el producto cuando se monta el componente
-  useEffect(() => {
-    getProducto();
-  }, []);
+  if (isLoadingProduct || !formData) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <p className="text-sm text-muted-foreground">Cargando producto...</p>
+      </div>
+    );
+  }
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const getCategorias = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/categoria`);
-      if (response.status === 200) {
-        setCategories(response.data);
-      }
-    } catch (error) {}
-  };
-  useEffect(() => {
-    getCategorias();
-  }, []);
+  // Precios visibles (no eliminados)
+  const visiblePrices = formData.precios.filter((p) => !p.eliminar);
 
-  console.log("El producto recibido es: ", formData);
-
-  //==============>
-
-  return formData ? (
+  return (
     <form
       onSubmit={handleSubmit}
-      className="shadow-xl space-y-6 max-w-2xl mx-auto p-6 bg-card rounded-lg "
+      className="mx-auto max-w-2xl space-y-6 rounded-lg bg-card p-6 shadow-xl"
     >
-      <h2 className="text-center font-bold text-xl">Edición de Producto</h2>
+      <h2 className="text-center text-xl font-bold">Edición de Producto</h2>
 
-      <div>
+      {/* Nombre */}
+      <div className="space-y-1">
         <Label htmlFor="nombre">Nombre del Producto</Label>
         <Input
           id="nombre"
@@ -140,7 +265,8 @@ export default function ProductEditForm() {
         />
       </div>
 
-      <div>
+      {/* Descripción */}
+      <div className="space-y-1">
         <Label htmlFor="descripcion">Descripción</Label>
         <Textarea
           id="descripcion"
@@ -151,8 +277,9 @@ export default function ProductEditForm() {
         />
       </div>
 
-      <div>
-        <Label htmlFor="descripcion">Precio Costo</Label>
+      {/* Precio Costo */}
+      <div className="space-y-1">
+        <Label htmlFor="precioCostoActual">Precio Costo</Label>
         <Input
           type="number"
           id="precioCostoActual"
@@ -162,30 +289,78 @@ export default function ProductEditForm() {
         />
       </div>
 
-      <div>
-        <Label className="block text-center mb-4">Precios</Label>
-        {[0, 1, 2].map((index) => {
-          const precio = formData.precios[index] || { precio: "" }; // Default to an empty price if none exists
-          return (
-            <div key={index} className="flex items-center space-x-4 mb-2">
-              <Label className="w-1/4 text-right font-semibold">
-                Precio #{index + 1}:
-              </Label>
-              <Input
-                type="number"
-                value={precio.precio || ""}
-                onChange={handlePriceChange(index)} // Use index to handle price changes
-                step="0.01"
-                min="0"
-                // required
-                className="w-3/4"
-              />
-            </div>
-          );
-        })}
+      {/* Precios dinámicos */}
+      <div className="space-y-3 rounded-md border p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-semibold">Precios del producto</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleAddPrice}
+          >
+            Añadir precio
+          </Button>
+        </div>
+
+        {visiblePrices.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No hay precios definidos. Agrega al menos uno.
+          </p>
+        )}
+
+        <div className="space-y-2">
+          {visiblePrices.map((precio, visibleIndex) => {
+            // Necesitamos el índice real en el array original
+            const realIndex = formData.precios.findIndex((p) => p === precio);
+
+            return (
+              <div
+                key={precio.id ?? `new-${visibleIndex}`}
+                className="flex flex-col gap-2 rounded-md bg-muted p-2 sm:flex-row sm:items-center"
+              >
+                <div className="flex flex-1 flex-col gap-1 sm:flex-row sm:items-center">
+                  <div className="flex-1">
+                    <Label className="text-xs">Precio</Label>
+                    <Input
+                      type="number"
+                      value={precio.precio}
+                      onChange={handlePriceValueChange(realIndex)}
+                      step="0.01"
+                      min="0"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="w-24">
+                    <Label className="text-xs">Orden</Label>
+                    <Input
+                      type="number"
+                      value={precio.orden}
+                      onChange={handlePriceOrderChange(realIndex)}
+                      min={1}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeletePrice(realIndex)}
+                    className="h-8"
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div>
+      {/* Código de producto */}
+      <div className="space-y-1">
         <Label htmlFor="codigoProducto">Código del Producto</Label>
         <Input
           id="codigoProducto"
@@ -196,22 +371,25 @@ export default function ProductEditForm() {
         />
       </div>
 
-      <div>
+      {/* Categorías */}
+      <div className="space-y-1">
         <Label>Categorías</Label>
         <SelectM
-          placeholder="Seleccionar..."
+          placeholder={
+            isLoadingCategories ? "Cargando categorías..." : "Seleccionar..."
+          }
           isMulti
           name="categorias"
-          options={categories.map((categoria) => ({
+          isDisabled={isLoadingCategories}
+          options={categories.map((categoria: Category) => ({
             value: categoria.id,
             label: categoria.nombre,
-          }))} // Mostramos todas las categorías disponibles
+          }))}
           className="basic-multi-select text-black"
           classNamePrefix="select"
           onChange={(selectedOptions) => {
-            // Manejamos la selección de categorías actualizando el formData
             setFormData((prev) => {
-              if (!prev) return prev; // Si prev es null, no hacer nada
+              if (!prev) return prev;
               return {
                 ...prev,
                 categorias: selectedOptions.map((option) => ({
@@ -223,16 +401,15 @@ export default function ProductEditForm() {
           }}
           value={formData.categorias.map((cat) => ({
             value: cat.id,
-            label: categories.find((c) => c.id === cat.id)?.nombre || "",
-          }))} // Mapeamos las categorías seleccionadas
+            label:
+              categories.find((c) => c.id === cat.id)?.nombre || cat.nombre,
+          }))}
         />
       </div>
 
-      <Button type="submit" className="w-full">
-        Actualizar Producto
+      <Button type="submit" className="w-full" disabled={isUpdating}>
+        {isUpdating ? "Actualizando..." : "Actualizar Producto"}
       </Button>
     </form>
-  ) : (
-    <p>Cargando producto...</p>
   );
 }
