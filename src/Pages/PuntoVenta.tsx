@@ -75,6 +75,7 @@ import {
   useCreateVenta,
   Venta,
 } from "@/hooks/useHooks/useVentaMutations";
+import { getApiErrorMessageAxios } from "./Utils/apiAxiosError";
 
 dayjs.extend(localizedFormat);
 dayjs.locale("es");
@@ -398,9 +399,25 @@ export default function PuntoVenta() {
   // COMPLETAR VENTA (mutation)
   // =======================
   const handleCompleteSale = async () => {
+    // 1) Validaciones básicas de usuario/sucursal
+    if (!userId || !rawSucursalId) {
+      toast.error(
+        "No se puede registrar la venta: sucursal o usuario no válidos."
+      );
+      return;
+    }
+
+    // 2) Definir método de pago con fallback a CONTADO
+    // Asegúrate que estos strings coinciden EXACTO con tu enum MetodoPago del backend
+    const metodoPago = (paymentMethod || "CONTADO") as
+      | "CONTADO"
+      | "TARJETA"
+      | "TRANSFERENCIA"
+      | string;
+
     const saleData = {
       usuarioId: userId,
-      sucursalId: rawSucursalId ?? null,
+      sucursalId: rawSucursalId,
       clienteId: selectedCustomerID?.id ?? null,
       productos: cart.map((prod) => ({
         productoId: prod.id,
@@ -411,7 +428,7 @@ export default function PuntoVenta() {
         id: pack.id,
         quantity: pack.quantity,
       })),
-      metodoPago: paymentMethod || "CONTADO",
+      metodoPago,
       monto: cart.reduce(
         (acc, prod) => acc + prod.selectedPrice * prod.quantity,
         0
@@ -424,8 +441,9 @@ export default function PuntoVenta() {
     };
 
     const isCustomerInfoProvided =
-      saleData.nombre && saleData.telefono && saleData.direccion;
+      !!saleData.nombre && !!saleData.telefono && !!saleData.direccion;
 
+    // 3) Regla de cliente para ventas grandes
     if (
       saleData.monto > 1000 &&
       !saleData.clienteId &&
@@ -438,26 +456,39 @@ export default function PuntoVenta() {
     }
 
     try {
-      const ventaCreada = await createVenta(saleData);
+      // 4) Ejecutar la venta con toast.promise
+      const ventaCreada = await toast.promise(createVenta(saleData), {
+        loading: "Registrando venta...",
+        success: (data) => {
+          // data es la venta creada que devuelve el backend
+          // Aquí aplicamos todos los efectos colaterales en UI
+          setIsDialogOpen(false);
+          setCart([]);
+          setImei("");
+          setventaResponse(data);
+          setSelectedCustomerID(null);
+          setNombre("");
+          setTelefono("");
+          setDireccion("");
+          setDpi("");
+          setEmpaquesUsados([]);
+          setOpenEmpaques(false);
 
-      toast.success("Venta completada con éxito");
-      setIsDialogOpen(false);
-      setCart([]);
-      setImei("");
-      setventaResponse(ventaCreada);
-      setSelectedCustomerID(null);
-      setNombre("");
-      setTelefono("");
-      setDireccion("");
-      setDpi("");
-      setEmpaquesUsados([]);
-      setOpenEmpaques(false);
+          setTimeout(() => {
+            setOpenSection(true);
+          }, 1000);
 
-      setTimeout(() => {
-        setOpenSection(true);
-      }, 1000);
+          return "Venta completada con éxito";
+        },
+        error: (error) => getApiErrorMessageAxios(error),
+      });
+
+      // Si quieres usar ventaCreada después, aquí también la tienes:
+      console.log("Venta creada:", ventaCreada);
     } catch (error) {
       console.log(error);
+      // El mensaje principal ya lo muestra toast.promise vía getApiErrorMessageAxios,
+      // esto es solo un fallback genérico.
       toast.error("Ocurrió un error al completar la venta");
     }
   };

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -21,10 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
-import axios from "axios";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useStore } from "@/components/Context/ContextSucursal";
 import {
   Dialog,
   DialogContent,
@@ -32,184 +28,218 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
-const API_URL = import.meta.env.VITE_API_URL;
+import { useStore } from "@/components/Context/ContextSucursal";
+import {
+  DepositoCreatePayload,
+  EgresoCreatePayload,
+  useCreateDeposito,
+  useCreateEgreso,
+} from "./hooks";
 
-interface DepositoFormData {
-  monto: number;
-  numeroBoleta: string;
-  banco: string;
-  usadoParaCierre: boolean;
-  sucursalId: number;
-  descripcion: string;
-  usuarioId: number | null;
-}
-
-interface FormDataEgreso {
-  monto: number;
-  sucursalId: number;
-  descripcion: string;
-  usuarioId: number | null;
-}
-
+// ================================
+// Component
+// ================================
 export default function RegistroDeposito() {
   const sucursalId = useStore((state) => state.sucursalId) ?? 0;
   const usuarioId = useStore((state) => state.userId) ?? 0;
 
-  const [formDataEgreso, setFormDataEgreso] = useState<FormDataEgreso>({
+  // ================================
+  // Estado Depósito
+  // ================================
+  const [formDataDeposito, setFormDataDeposito] =
+    useState<DepositoCreatePayload>({
+      monto: 0,
+      numeroBoleta: "",
+      banco: "",
+      usadoParaCierre: false,
+      sucursalId,
+      usuarioId,
+      descripcion: "",
+    });
+
+  const [depositErrors, setDepositErrors] = useState<
+    Partial<DepositoCreatePayload>
+  >({});
+  const [openConfirmDeposito, setOpenConfirmDeposito] = useState(false);
+
+  const createDepositoMutation = useCreateDeposito();
+
+  // ================================
+  // Estado Egreso
+  // ================================
+  const [formDataEgreso, setFormDataEgreso] = useState<EgresoCreatePayload>({
     descripcion: "",
     monto: 0,
-    sucursalId: sucursalId,
-    usuarioId,
-  });
-
-  const [formData, setFormData] = useState<DepositoFormData>({
-    monto: 0,
-    numeroBoleta: "",
-    banco: "",
-    usadoParaCierre: false,
     sucursalId,
     usuarioId,
-    descripcion: "",
   });
+  const [openConfirmEgreso, setOpenConfirmEgreso] = useState(false);
+  const createEgresoMutation = useCreateEgreso();
 
-  const [errors, setErrors] = useState<Partial<DepositoFormData>>({});
-
-  const handleInputChange = (
+  // ================================
+  // Handlers Depósito
+  // ================================
+  const handleDepositoInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" }));
+
+    setFormDataDeposito((prev) => ({
+      ...prev,
+      [name]: name === "monto" ? Number(value) || 0 : (value as string),
+    }));
+
+    setDepositErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
-  const handleInputChangeEgreso = (
-    //ESPERAR UN OBJETO QUE PUEDE TENER DOS TIPOS, DE INPUT O TEXT AREA
+  const handleDepositoBancoChange = (value: string) => {
+    setFormDataDeposito((prev) => ({ ...prev, banco: value }));
+    setDepositErrors((prev) => ({ ...prev, banco: undefined }));
+  };
+
+  const validarFormularioDeposito = (): boolean => {
+    const { numeroBoleta, banco, descripcion } = formDataDeposito;
+
+    const newErrors: Partial<DepositoCreatePayload> = {};
+
+    if (!numeroBoleta.trim())
+      newErrors.numeroBoleta = "Ingrese el número de boleta";
+    if (!banco) newErrors.banco = "Seleccione un banco";
+    if (!descripcion.trim()) newErrors.descripcion = "Ingrese una descripción";
+
+    if (Object.keys(newErrors).length > 0) {
+      setDepositErrors(newErrors);
+      toast.warning("Falta información en el formulario de depósito");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmitDeposito = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (createDepositoMutation.isPending) return;
+
+    if (!validarFormularioDeposito()) return;
+
+    const payload: DepositoCreatePayload = {
+      ...formDataDeposito,
+      sucursalId,
+      usuarioId,
+    };
+
+    try {
+      await toast.promise(createDepositoMutation.mutateAsync(payload), {
+        loading: "Registrando depósito...",
+        success: "El depósito se ha registrado correctamente.",
+        error: "No se pudo registrar el depósito. Intente nuevamente.",
+      });
+
+      setFormDataDeposito({
+        monto: 0,
+        numeroBoleta: "",
+        banco: "",
+        usadoParaCierre: false,
+        sucursalId,
+        usuarioId,
+        descripcion: "",
+      });
+      setOpenConfirmDeposito(false);
+      setDepositErrors({});
+    } catch {
+      // El error ya se mostró en toast.promise
+    }
+  };
+
+  // ================================
+  // Handlers Egreso
+  // ================================
+  const handleEgresoInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    //DEFINIR CONSTANTES QUE USAREMOS PARA LLENAR EL FORMULARIO
-    const { name, value } = e.target; //que vienen del objeto e.target
+    const { name, value } = e.target;
+
     setFormDataEgreso((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === "monto" ? Number(value) || 0 : (value as string),
     }));
   };
 
-  console.log("Forma data de egreso: ", formDataEgreso);
-
-  const handleSwitchChange = (checked: boolean) => {
-    setFormData((prev) => ({ ...prev, usadoParaCierre: checked }));
-  };
-
-  const handleSelectChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, banco: value }));
-    setErrors((prev) => ({ ...prev, banco: "" }));
-  };
-
-  const validarFormulario = (): boolean => {
-    if (
-      formData.monto <= 0 ||
-      !formData.monto ||
-      !formData.numeroBoleta ||
-      !formData.banco ||
-      !formData.descripcion
-    ) {
-      toast.warning("Falta información");
-      setTruncarDeposit(false);
+  const validarFormularioEgreso = (): boolean => {
+    if (!formDataEgreso.monto || formDataEgreso.monto <= 0) {
+      toast.warning("Ingrese un monto válido para el egreso");
       return false;
     }
+
+    if (!formDataEgreso.descripcion.trim()) {
+      toast.warning("Ingrese una descripción para el egreso");
+      return false;
+    }
+
     return true;
   };
-  const [openConfirm, setOpenConfirm] = useState(false);
-  const [truncarDeposito, setTruncarDeposit] = useState(false);
-  const handleSubmit = async (e: React.FormEvent) => {
-    if (truncarDeposito) return;
-    e.preventDefault();
-    setTruncarDeposit(true);
-    if (!validarFormulario()) return;
+
+  const handleSubmitEgreso = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (createEgresoMutation.isPending) return;
+
+    if (!validarFormularioEgreso()) return;
+
+    const payload: EgresoCreatePayload = {
+      ...formDataEgreso,
+      sucursalId,
+      usuarioId,
+    };
 
     try {
-      const response = await axios.post(
-        `${API_URL}/caja/create-deposit`,
-        formData
-      );
-      if (response.status === 201) {
-        toast.success("El depósito se ha registrado correctamente.");
-        setFormData({
-          monto: 0,
-          numeroBoleta: "",
-          banco: "",
-          usadoParaCierre: false,
-          sucursalId,
-          descripcion: "",
-          usuarioId,
-        });
-        setOpenConfirm(false);
-        setTruncarDeposit(false);
-      }
-    } catch (error) {
-      toast.error("No se pudo registrar el depósito. Intente nuevamente.");
-      setTruncarDeposit(false);
+      await toast.promise(createEgresoMutation.mutateAsync(payload), {
+        loading: "Registrando egreso...",
+        success: "El egreso se ha registrado correctamente.",
+        error: "No se pudo registrar el egreso. Intente nuevamente.",
+      });
+
+      setFormDataEgreso({
+        monto: 0,
+        sucursalId,
+        usuarioId,
+        descripcion: "",
+      });
+      setOpenConfirmEgreso(false);
+    } catch {
+      // El error ya se mostró en toast.promise
     }
   };
 
-  const [openEgreso, setOpenEgreso] = useState(false);
-  const [truncarEgreso, setTruncarEgreso] = useState(false);
-  const handleSubmitEgreso = async (e: React.FormEvent) => {
-    if (truncarEgreso) return;
-    setTruncarEgreso(true);
-
-    e.preventDefault();
-    if (!formDataEgreso.monto || !formDataEgreso.descripcion) {
-      toast.warning("Falta información");
-      setTruncarEgreso(false);
-
-      return;
-    }
-
-    try {
-      const response = await axios.post(
-        `${API_URL}/caja/create-egreso`,
-        formDataEgreso
-      );
-      if (response.status === 201) {
-        toast.success("El egreso se ha registrado correctamente.");
-        setFormDataEgreso({
-          monto: 0,
-          sucursalId,
-          descripcion: "",
-          usuarioId,
-        });
-        setTruncarEgreso(false);
-        setOpenEgreso(false);
-      }
-    } catch (error) {
-      toast.error("No se pudo registrar el depósito. Intente nuevamente.");
-      setTruncarEgreso(false);
-    }
-  };
-  console.log("La data a enviar: ", formData);
-
+  // ================================
+  // Render
+  // ================================
   return (
-    <Tabs defaultValue="account" className="max-w-5xl mx-auto mt-10">
+    <Tabs defaultValue="deposito" className="max-w-5xl mx-auto mt-10">
       <TabsList className="flex justify-center gap-4 mb-6">
-        <TabsTrigger value="account" className="flex-1 text-center">
+        <TabsTrigger value="deposito" className="flex-1 text-center">
           Registrar Depósito
         </TabsTrigger>
-        <TabsTrigger value="password" className="flex-1 text-center">
+        <TabsTrigger value="egreso" className="flex-1 text-center">
           Registrar Egreso
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="account">
-        <Card className="w-full shadow-lg border rounded-lg">
-          <CardHeader className="text-center">
-            <CardTitle>Registro de Depósito</CardTitle>
+
+      {/* ================= DEPÓSITO ================ */}
+      <TabsContent value="deposito">
+        <Card className="w-full border border-[#e2b7b8] dark:border-[#7b2c7d] rounded-2xl shadow-sm">
+          <CardHeader className="text-center border-b border-[#e2b7b8]/60 dark:border-[#7b2c7d]/60 bg-[#fff5f7] dark:bg-[#7b2c7d]/10 rounded-t-2xl">
+            <CardTitle className="text-[#7b2c7d]">
+              Registro de Depósito
+            </CardTitle>
             <CardDescription>
               Ingrese los detalles del depósito para la sucursal
             </CardDescription>
           </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-6">
+
+          <form onSubmit={handleSubmitDeposito}>
+            <CardContent className="space-y-6 pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="monto">Monto</Label>
@@ -218,34 +248,41 @@ export default function RegistroDeposito() {
                     name="monto"
                     type="number"
                     step="0.01"
-                    value={formData.monto}
-                    onChange={handleInputChange}
+                    value={formDataDeposito.monto}
+                    onChange={handleDepositoInputChange}
                     placeholder="0.00"
                   />
-                  {errors.monto && (
-                    <p className="text-sm text-red-500">{errors.monto}</p>
+                  {depositErrors.monto && (
+                    <p className="text-sm text-red-500">
+                      {depositErrors.monto}
+                    </p>
                   )}
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="numeroBoleta">Número de Boleta</Label>
                   <Input
                     id="numeroBoleta"
                     name="numeroBoleta"
-                    value={formData.numeroBoleta}
-                    onChange={handleInputChange}
+                    value={formDataDeposito.numeroBoleta}
+                    onChange={handleDepositoInputChange}
                     placeholder="Ingrese el número de boleta"
                   />
-                  {errors.numeroBoleta && (
+                  {depositErrors.numeroBoleta && (
                     <p className="text-sm text-red-500">
-                      {errors.numeroBoleta}
+                      {depositErrors.numeroBoleta}
                     </p>
                   )}
                 </div>
               </div>
+
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="banco">Banco</Label>
-                  <Select onValueChange={handleSelectChange}>
+                  <Select
+                    value={formDataDeposito.banco || undefined}
+                    onValueChange={handleDepositoBancoChange}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione un banco" />
                     </SelectTrigger>
@@ -260,41 +297,47 @@ export default function RegistroDeposito() {
                       <SelectItem value="OTRO">OTRO</SelectItem>
                     </SelectContent>
                   </Select>
-                  {errors.banco && (
-                    <p className="text-sm text-red-500">{errors.banco}</p>
+                  {depositErrors.banco && (
+                    <p className="text-sm text-red-500">
+                      {depositErrors.banco}
+                    </p>
                   )}
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="descripcion">Descripción</Label>
                   <Textarea
                     id="descripcion"
                     name="descripcion"
-                    value={formData.descripcion}
-                    onChange={handleInputChange}
-                    placeholder="Ingrese una descripción (opcional)"
+                    value={formDataDeposito.descripcion}
+                    onChange={handleDepositoInputChange}
+                    placeholder="Ingrese una descripción"
                   />
+                  {depositErrors.descripcion && (
+                    <p className="text-sm text-red-500">
+                      {depositErrors.descripcion}
+                    </p>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="usadoParaCierre"
-                  checked={formData.usadoParaCierre}
-                  onCheckedChange={handleSwitchChange}
-                />
-                <Label htmlFor="usadoParaCierre">Usado para cierre</Label>
-              </div>
             </CardContent>
-            <CardFooter className="flex justify-center">
+
+            <CardFooter className="flex justify-center pb-6">
               <Button
-                onClick={() => setOpenConfirm(true)}
                 type="button"
-                className="w-full max-w-xs"
+                onClick={() => setOpenConfirmDeposito(true)}
+                disabled={createDepositoMutation.isPending}
+                className="w-full max-w-xs bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
               >
                 Registrar Depósito
               </Button>
             </CardFooter>
           </form>
-          <Dialog onOpenChange={setOpenConfirm} open={openConfirm}>
+
+          <Dialog
+            onOpenChange={setOpenConfirmDeposito}
+            open={openConfirmDeposito}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle className="text-center">
@@ -306,67 +349,68 @@ export default function RegistroDeposito() {
                 </DialogDescription>
               </DialogHeader>
               <Button
-                disabled={truncarDeposito}
-                onClick={handleSubmit}
-                className="w-full"
+                disabled={createDepositoMutation.isPending}
+                onClick={() => handleSubmitDeposito()}
+                className="w-full bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
               >
-                Si, continuar
+                {createDepositoMutation.isPending && (
+                  <span className="mr-2 h-4 w-4 animate-spin border-2 border-white border-t-transparent rounded-full" />
+                )}
+                Sí, continuar
               </Button>
             </DialogContent>
           </Dialog>
         </Card>
       </TabsContent>
-      <TabsContent value="password">
-        <Card className="w-full shadow-lg border rounded-lg">
-          <CardHeader className="text-center">
-            <CardTitle>Registro de Egreso</CardTitle>
+
+      {/* ================= EGRESO ================ */}
+      <TabsContent value="egreso">
+        <Card className="w-full border border-[#e2b7b8] dark:border-[#7b2c7d] rounded-2xl shadow-sm">
+          <CardHeader className="text-center border-b border-[#e2b7b8]/60 dark:border-[#7b2c7d]/60 bg-[#fff5f7] dark:bg-[#7b2c7d]/10 rounded-t-2xl">
+            <CardTitle className="text-[#7b2c7d]">Registro de Egreso</CardTitle>
             <CardDescription>Ingrese los detalles del egreso</CardDescription>
           </CardHeader>
+
           <form onSubmit={handleSubmitEgreso}>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1  gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="monto">Monto</Label>
-                  <Input
-                    id="monto"
-                    name="monto"
-                    type="number"
-                    step="1"
-                    value={formDataEgreso.monto}
-                    onChange={handleInputChangeEgreso}
-                    placeholder="0.00"
-                  />
-                  {errors.monto && (
-                    <p className="text-sm text-red-500">{errors.monto}</p>
-                  )}
-                </div>
+            <CardContent className="space-y-6 pt-6">
+              <div className="space-y-2">
+                <Label htmlFor="monto-egreso">Monto</Label>
+                <Input
+                  id="monto-egreso"
+                  name="monto"
+                  type="number"
+                  step="1"
+                  value={formDataEgreso.monto}
+                  onChange={handleEgresoInputChange}
+                  placeholder="0.00"
+                />
               </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="descripcion">Descripción</Label>
-                  <Textarea
-                    id="descripcion"
-                    name="descripcion"
-                    value={formDataEgreso.descripcion}
-                    onChange={handleInputChangeEgreso}
-                    placeholder="Ingrese una descripción"
-                  />
-                </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="descripcion-egreso">Descripción</Label>
+                <Textarea
+                  id="descripcion-egreso"
+                  name="descripcion"
+                  value={formDataEgreso.descripcion}
+                  onChange={handleEgresoInputChange}
+                  placeholder="Ingrese una descripción"
+                />
               </div>
             </CardContent>
-            <CardFooter className="flex justify-center">
+
+            <CardFooter className="flex justify-center pb-6">
               <Button
-                disabled={truncarEgreso}
                 type="button"
-                className="w-full max-w-xs"
-                onClick={() => setOpenEgreso(true)}
+                disabled={createEgresoMutation.isPending}
+                className="w-full max-w-xs bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+                onClick={() => setOpenConfirmEgreso(true)}
               >
                 Registrar Egreso
               </Button>
             </CardFooter>
           </form>
 
-          <Dialog onOpenChange={setOpenEgreso} open={openEgreso}>
+          <Dialog onOpenChange={setOpenConfirmEgreso} open={openConfirmEgreso}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle className="text-center">
@@ -378,11 +422,14 @@ export default function RegistroDeposito() {
                 </DialogDescription>
               </DialogHeader>
               <Button
-                disabled={truncarEgreso}
-                onClick={handleSubmitEgreso}
-                className="w-full"
+                disabled={createEgresoMutation.isPending}
+                onClick={() => handleSubmitEgreso()}
+                className="w-full bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
               >
-                Si, continuar
+                {createEgresoMutation.isPending && (
+                  <span className="mr-2 h-4 w-4 animate-spin border-2 border-white border-t-transparent rounded-full" />
+                )}
+                Sí, continuar
               </Button>
             </DialogContent>
           </Dialog>

@@ -1,6 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Banknote,
+  CoinsIcon,
+  CheckCircle2,
+  Coins,
+  CreditCard,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,13 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { toast } from "sonner";
-import { useStore } from "@/components/Context/ContextSucursal";
-import axios from "axios";
-import dayjs from "dayjs";
-import "dayjs/locale/es";
-import utc from "dayjs/plugin/utc";
-import localizedFormat from "dayjs/plugin/localizedFormat";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -29,186 +30,92 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+import { toast } from "sonner";
+import { useStore } from "@/components/Context/ContextSucursal";
+
+import dayjs from "dayjs";
+import "dayjs/locale/es";
+import utc from "dayjs/plugin/utc";
+import localizedFormat from "dayjs/plugin/localizedFormat";
+
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-const API_URL = import.meta.env.VITE_API_URL;
+  useCloseCaja,
+  useGetCajaAbierta,
+  useGetDepositosSucursal,
+  useGetEgresosSucursal,
+  useGetVentasCaja,
+  useOpenCaja,
+  RegistroCajaInicioPayload,
+  RegistroCajaCierrePayload,
+} from "@/hooks/useHooks/useCaja";
 
 dayjs.extend(utc);
 dayjs.extend(localizedFormat);
 dayjs.locale("es");
 
 const formatearFecha = (fecha: string) => {
-  // Formateo en UTC sin conversión a local
   return dayjs(fecha).format("DD/MM/YYYY hh:mm A");
 };
 
-interface RegistroCajaFormData {
-  saldoInicial: number;
-  saldoFinal: number;
-  fechaInicio: string;
-  fechaCierre: string;
-  estado: "ABIERTO" | "CERRADO";
-  comentario: string;
-  usuarioId: number | null;
-  sucursalId: number | null;
-}
+// Aux: prevenir scroll en inputs number
+const handleNumberWheel: React.WheelEventHandler<HTMLInputElement> = (
+  event
+) => {
+  event.currentTarget.blur();
+};
 
-interface RegistroCajaInicioFormData {
-  saldoInicial: number;
-  estado: "ABIERTO" | "CERRADO";
-  comentario: string;
-  usuarioId: number | null;
-  sucursalId: number | null;
-}
-
-interface RegistroAbierto {
-  id: number;
-  sucursalId: number;
-  usuarioId: number;
-  saldoInicial: number;
-  saldoFinal: number;
-  fechaInicio: string; // ISO string representation of the date
-  fechaCierre: string; // ISO string representation of the date
-  estado: "ABIERTO" | "CERRADO"; // assuming it can have two states
-  comentario: string | null;
-  usuario: {
-    id: number;
-    nombre: string;
-    rol: "ADMIN" | "VENDEDOR";
-  };
-}
-
-interface Usuario {
-  id: number;
-  nombre: string;
-  rol: string;
-}
-
-interface Deposito {
-  id: number;
-  registroCajaId: number | null;
-  monto: number;
-  numeroBoleta: string;
-  banco: string;
-  fechaDeposito: string; // ISO string representation of the date
-  usadoParaCierre: boolean;
-  descripcion: string;
-  sucursalId: number;
-  usuarioId: number | null;
-  usuario: Usuario | null;
-  sucursal: {
-    id: number;
-    nombre: string;
-  };
-}
-
-interface UsuarioEgreso {
-  id: number;
-  nombre: string;
-  rol: string;
-}
-
-interface Egreso {
-  id: number;
-  registroCajaId: number | null;
-  descripcion: string;
-  monto: number;
-  fechaEgreso: string; // ISO string representation of the date
-  sucursalId: number;
-  usuarioId: number;
-  usuario: UsuarioEgreso;
-}
-
-interface Productos {
-  cantidad: number;
-  producto: {
-    id: number;
-    nombre: string;
-    codigoProducto: string;
-  };
-}
-
-interface VentaWithOutCashRegist {
-  id: number;
-  clienteId: number | null;
-  fechaVenta: string;
-  horaVenta: string;
-  totalVenta: number;
-  sucursalId: number;
-  nombreClienteFinal: string | null;
-  telefonoClienteFinal: string | null;
-  direccionClienteFinal: string | null;
-  imei: string | null;
-  registroCajaId: number | null;
-  productos: Productos[];
-}
-
-interface SaleItemProps {
-  sale: {
-    id: number;
-    clienteId: number | null;
-    fechaVenta: string;
-    horaVenta: string;
-    totalVenta: number;
-    sucursalId: number;
-    nombreClienteFinal: string | null;
-    telefonoClienteFinal: string | null;
-    direccionClienteFinal: string | null;
-    imei: string | null;
-    registroCajaId: number | null;
-    productos: Productos[];
-  };
-}
-
-interface ExpenseItemProps {
-  expense: {
-    id: number;
-    registroCajaId: number | null;
-    descripcion: string;
-    monto: number;
-    fechaEgreso: string; // ISO string representation of the date
-    sucursalId: number;
-    usuarioId: number;
-    usuario: UsuarioEgreso;
-  };
-}
-
-interface DepositItemProps {
-  deposit: {
-    id: number;
-    registroCajaId: number | null;
-    monto: number;
-    numeroBoleta: string;
-    banco: string;
-    fechaDeposito: string; // ISO string representation of the date
-    usadoParaCierre: boolean;
-    descripcion: string;
-    sucursalId: number;
-    usuarioId: number | null;
-    usuario: Usuario | null;
-    sucursal: {
-      id: number;
-      nombre: string;
-    };
-  };
-}
-
+// Componente principal
 export default function RegistroCaja() {
-  const [isCashRegistOpen, setCashRegistIsOpen] = useState(false);
   const sucursalId = useStore((state) => state.sucursalId) ?? 0;
   const usuarioId = useStore((state) => state.userId) ?? 0;
-  const [registroAbierto, setRegistroAbierto] = useState<RegistroAbierto>();
-  const [depositos, setDepositos] = useState<Deposito[]>([]);
+  const userName = useStore((state) => state.userNombre) ?? "";
 
-  const [egreso, setEgreso] = useState<Egreso[]>([]);
+  // Queries
+  const { data: cajaInfo, isLoading: isLoadingCaja } = useGetCajaAbierta(
+    sucursalId,
+    usuarioId
+  );
 
-  const [formData, setFormData] = useState<RegistroCajaFormData>({
+  // Caja abierta (si existe)
+  const registroAbierto = cajaInfo?.cajaAbierta ?? null;
+  // Última caja cerrada (si existe)
+  const ultimaCajaCerrada = cajaInfo?.ultimaCajaCerrada ?? null;
+
+  const isCashRegistOpen = !!registroAbierto;
+
+  // Resumen calculado por el backend
+  const resumen = registroAbierto?.resumen;
+
+  // saldo teórico según backend (lo que "debería" haber en caja)
+  const saldoTeoricoFinal = resumen?.saldoTeoricoFinal ?? 0;
+
+  const { data: depositos = [] } = useGetDepositosSucursal(sucursalId);
+  const { data: egresos = [] } = useGetEgresosSucursal(sucursalId);
+  const { data: ventas = [] } = useGetVentasCaja(sucursalId, usuarioId);
+
+  // Mutations
+  const openCajaMutation = useOpenCaja();
+  const closeCajaMutation = useCloseCaja();
+
+  // Formularios
+  const [formDataInicio, setFormDataInicio] =
+    useState<RegistroCajaInicioPayload>({
+      saldoInicial: 0,
+      estado: "ABIERTO",
+      comentario: "",
+      sucursalId,
+      usuarioId,
+    });
+
+  const [formDataCierre, setFormDataCierre] = useState<
+    Omit<
+      RegistroCajaCierrePayload,
+      "depositosIds" | "egresosIds" | "ventasIds" | "id"
+    >
+  >({
     saldoInicial: 0,
-    saldoFinal: 0,
+    saldoFinal: saldoTeoricoFinal ?? 0,
     fechaInicio: new Date().toISOString().split("T")[0],
     fechaCierre: "",
     estado: "ABIERTO",
@@ -217,423 +124,233 @@ export default function RegistroCaja() {
     usuarioId,
   });
 
-  const [formDataInicio, setFormDataInicio] =
-    useState<RegistroCajaInicioFormData>({
-      saldoInicial: 0,
-      estado: "ABIERTO",
-      comentario: "",
-      sucursalId,
-      usuarioId,
-    });
+  useEffect(() => {
+    if (saldoTeoricoFinal) {
+      setFormDataCierre((previa) => ({
+        ...previa,
+        saldoFinal: saldoTeoricoFinal,
+      }));
+    }
+  }, [saldoTeoricoFinal]);
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  // Diálogos
+  const [openConfirmInicio, setOpenConfirmInicio] = useState(false);
+  const [openConfirmCierre, setOpenConfirmCierre] = useState(false);
 
-  const handleInputChangeInicio = (
+  // Si hay caja abierta, sincronizamos datos de cierre
+  useEffect(() => {
+    if (registroAbierto) {
+      setFormDataCierre((prev) => ({
+        ...prev,
+        comentario: registroAbierto.comentario ?? "",
+        saldoInicial: registroAbierto.saldoInicial ?? 0,
+      }));
+    }
+  }, [registroAbierto]);
+
+  // Si NO hay caja abierta pero SÍ hay última caja cerrada,
+  // sugerimos saldoInicial = saldoFinal de esa caja (solo si está en 0).
+  useEffect(() => {
+    if (!registroAbierto && ultimaCajaCerrada) {
+      setFormDataInicio((prev) => {
+        if (prev.saldoInicial && prev.saldoInicial > 0) return prev;
+
+        return {
+          ...prev,
+          saldoInicial: ultimaCajaCerrada.saldoFinal ?? 0,
+          comentario:
+            prev.comentario ||
+            `Saldo inicial basado en el cierre anterior del ${formatearFecha(
+              ultimaCajaCerrada.fechaCierre
+            )}`,
+        };
+      });
+    }
+  }, [registroAbierto, ultimaCajaCerrada]);
+
+  // Handlers de inputs
+  const handleInputInicioChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
 
     setFormDataInicio((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === "saldoInicial" ? Number(value) || 0 : (value as string),
     }));
   };
 
-  const [truncateOpen, setTruncateOpen] = useState(false); // Previene doble envío al abrir
-  const [truncateClose, setTruncateClose] = useState(false); // Previene doble envío al cerrar
+  const handleInputCierreChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
 
-  const [openConfirm, setOpenConfirm] = useState(false); // Controla el dialog para iniciar
-  const [closeConfirm, setCloseConfirm] = useState(false); // Controla el dialog para cerrar
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (truncateClose) return; // Evitar doble clic
-    setTruncateClose(true);
-
-    if (!formData.saldoFinal || formData.saldoFinal <= 0) {
-      toast.warning("Saldo final no ingresado");
-      setTruncateClose(false);
-      return;
-    }
-
-    const depositosIDs = depositos?.map((dep) => dep.id) || [];
-    const egresosIDs = egreso?.map((eg) => eg.id) || [];
-    const ventasIds = ventas?.map((eg) => eg.id) || [];
-
-    const dataToSend = {
-      ...formData,
-      sucursalId,
-      usuarioId,
-      depositosIds: depositosIDs,
-      egresosIds: egresosIDs,
-      ventasIds,
-      id: registroAbierto?.id,
-    };
-
-    try {
-      const response = await axios.patch(
-        `${API_URL}/caja/close-box`,
-        dataToSend
-      );
-
-      if (response.status === 201 || response.status === 200) {
-        toast.success("El registro de caja se ha cerrado correctamente.");
-        getCashRegistOpen();
-        getRegistrosDeposito();
-        getRegistrosEgreso();
-        getRegistrosVentas();
-        setFormData({
-          saldoInicial: 0,
-          saldoFinal: 0,
-          fechaInicio: new Date().toISOString().split("T")[0],
-          fechaCierre: "",
-          estado: "ABIERTO",
-          comentario: "",
-          sucursalId,
-          usuarioId,
-        });
-        setCloseConfirm(false); // Cierra el diálogo explícitamente
-      }
-    } catch (error) {
-      toast.error("No se pudo cerrar el registro de caja. Intente nuevamente.");
-    } finally {
-      setTruncateClose(false);
-    }
+    setFormDataCierre((prev) => ({
+      ...prev,
+      [name]:
+        name === "saldoFinal" || name === "saldoInicial"
+          ? Number(value) || 0
+          : (value as string),
+    }));
   };
 
-  //INICIAR REGISTRO
-  const handleSubmitInicio = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (truncateOpen) return; // Evitar doble clic
-    setTruncateOpen(true);
+  // Totales calculados
+  const totalDepositos = useMemo(
+    () => depositos.reduce((acc, d) => acc + d.monto, 0),
+    [depositos]
+  );
+  const totalEgresos = useMemo(
+    () => egresos.reduce((acc, e) => acc + e.monto, 0),
+    [egresos]
+  );
+  const totalVentas = useMemo(
+    () => ventas.reduce((acc, v) => acc + v.totalVenta, 0),
+    [ventas]
+  );
+
+  // Submits
+  const handleSubmitInicio = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
     if (!formDataInicio.saldoInicial || formDataInicio.saldoInicial <= 0) {
-      toast.warning("Debe ingresar un saldo inicial");
-      setTruncateOpen(false);
+      toast.warning("Debe ingresar un saldo inicial mayor a 0");
       return;
     }
 
-    const dataToSend = {
+    const payload: RegistroCajaInicioPayload = {
       ...formDataInicio,
       sucursalId,
       usuarioId,
     };
 
     try {
-      const response = await axios.post(
-        `${API_URL}/caja/open-cash-regist`,
-        dataToSend
-      );
+      await toast.promise(openCajaMutation.mutateAsync(payload), {
+        loading: "Creando registro de caja...",
+        success: "El registro de caja se ha creado correctamente.",
+        error: "No se pudo abrir el registro de caja. Intente nuevamente.",
+      });
 
-      if (response.status === 201 || response.status === 200) {
-        toast.success("El registro de caja se ha creado correctamente.");
-        setFormDataInicio({
-          comentario: "",
-          estado: "ABIERTO",
-          sucursalId,
-          usuarioId,
-          saldoInicial: 0,
-        });
-        getCashRegistOpen(); // Actualiza el estado del registro
-        setOpenConfirm(false); // Cierra el diálogo explícitamente
-      }
-    } catch (error) {
-      toast.error("No se pudo abrir el registro de caja. Intente nuevamente.");
-    } finally {
-      setTruncateOpen(false);
+      setFormDataInicio({
+        saldoInicial: 0,
+        estado: "ABIERTO",
+        comentario: "",
+        sucursalId,
+        usuarioId,
+      });
+      setOpenConfirmInicio(false);
+    } catch {
+      // el toast.promise ya mostró el error
     }
   };
 
-  const getCashRegistOpen = async () => {
+  const handleSubmitCierre = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!registroAbierto) return;
+
+    if (!formDataCierre.saldoFinal || formDataCierre.saldoFinal <= 0) {
+      toast.warning("Debe ingresar un saldo final mayor a 0");
+      return;
+    }
+
+    const payload: RegistroCajaCierrePayload = {
+      ...formDataCierre,
+      sucursalId,
+      usuarioId,
+      fechaCierre: new Date().toISOString(),
+      depositosIds: depositos.map((d) => d.id),
+      egresosIds: egresos.map((e) => e.id),
+      ventasIds: ventas.map((v) => v.id),
+      id: registroAbierto.id,
+    };
+
     try {
-      const response = await axios.get(
-        `${API_URL}/caja/find-cash-regist-open/${sucursalId}/${usuarioId}`
-      );
+      await toast.promise(closeCajaMutation.mutateAsync(payload), {
+        loading: "Cerrando registro de caja...",
+        success: "El registro de caja se ha cerrado correctamente.",
+        error: "No se pudo cerrar el registro de caja. Intente nuevamente.",
+      });
 
-      if (response.data) {
-        setCashRegistIsOpen(true);
-        setRegistroAbierto(response.data);
-      } else {
-        setCashRegistIsOpen(false);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("Error al conseguir registro de caja");
+      setFormDataCierre({
+        saldoInicial: 0,
+        saldoFinal: 0,
+        fechaInicio: new Date().toISOString().split("T")[0],
+        fechaCierre: "",
+        estado: "ABIERTO",
+        comentario: "",
+        sucursalId,
+        usuarioId,
+      });
+      setOpenConfirmCierre(false);
+    } catch {
+      // error ya mostrado en toast.promise
     }
   };
 
-  useEffect(() => {
-    if (sucursalId && usuarioId) {
-      getCashRegistOpen();
-    }
-  }, [sucursalId, usuarioId]);
+  console.log("Caja info: ", cajaInfo);
 
-  useEffect(() => {
-    if (registroAbierto) {
-      setFormData((prev) => ({
-        ...prev,
-        comentario: registroAbierto.comentario || "",
-        saldoInicial: registroAbierto.saldoInicial || 0,
-      }));
-    }
-  }, [registroAbierto]);
-
-  const userName = useStore((state) => state.userNombre);
-  // /caja/get-all-deposits-sucursal/2
-  const getRegistrosDeposito = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/caja/get-all-deposits-sucursal/${sucursalId}`
-      );
-
-      if (response.status === 200) {
-        setDepositos(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.warning("No se pudieron conseguir registros de depósitos");
-    }
-  };
-
-  const getRegistrosEgreso = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/caja/get-all-egresos-sucursal/${sucursalId}`
-      );
-
-      if (response.status === 200) {
-        setEgreso(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.warning("No se pudieron conseguir registros de egresos");
-    }
-  };
-
-  const [ventas, setVentas] = useState<VentaWithOutCashRegist[]>([]);
-  const getRegistrosVentas = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/venta/get-ventas-caja/${sucursalId}/${usuarioId}`
-      );
-
-      if (response.status === 200) {
-        setVentas(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.warning("No se pudieron conseguir registros de egresos");
-    }
-  };
-
-  useEffect(() => {
-    getRegistrosDeposito();
-  }, [sucursalId]);
-
-  useEffect(() => {
-    getRegistrosEgreso();
-  }, [sucursalId]);
-
-  useEffect(() => {
-    getRegistrosVentas();
-  }, []);
-
-  console.log("Activando diálogo de inicio:", openConfirm);
-  console.log("Activando diálogo de cierre:", closeConfirm);
-  console.log("isCashRegistOpen:", isCashRegistOpen);
-
-  console.log("Las ventas son: ", ventas);
-
-  function DepositItem({ deposit }: DepositItemProps) {
+  if (isLoadingCaja && !cajaInfo) {
     return (
-      <Card key={deposit.id} className="border rounded-lg shadow-lg p-1">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">
-            No. Boleta:{" "}
-            <span className="text-primary">{deposit.numeroBoleta}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <p>
-              <span className="font-medium">Monto:</span>{" "}
-              {new Intl.NumberFormat("es-GT", {
-                style: "currency",
-                currency: "GTQ",
-              }).format(deposit.monto)}
-            </p>
-            <p>
-              <span className="font-medium">Banco:</span> {deposit.banco}
-            </p>
-            <p>
-              <span className="font-medium">Depositado el:</span>{" "}
-              {formatearFecha(deposit.fechaDeposito)}
-            </p>
-            <p>
-              <span className="font-medium">Registrado por:</span>{" "}
-              {deposit.usuario
-                ? `${deposit.usuario.nombre} (${deposit.usuario.rol})`
-                : "N/A"}
-            </p>
-          </div>
-          <p>
-            <span className="font-medium">Descripción:</span>{" "}
-            {deposit.descripcion || "Sin descripción"}
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <p>
-              <span className="font-medium">Estado:</span>{" "}
-              <Badge
-                variant={deposit.usadoParaCierre ? "default" : "secondary"}
-              >
-                {deposit.usadoParaCierre
-                  ? "Usado para cierre"
-                  : "No usado para cierre"}
-              </Badge>
-            </p>
-            <p>
-              <span className="font-medium">Sucursal:</span>{" "}
-              {deposit.sucursal.nombre}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  function ExpenseItem({ expense }: ExpenseItemProps) {
-    return (
-      <Card key={expense.id} className="border rounded-lg p-1 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Egreso</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <p>
-              <span className="font-medium">Registrado el:</span>{" "}
-              {formatearFecha(expense.fechaEgreso)}
-            </p>
-            <p>
-              <span className="font-medium">Registrado por:</span>{" "}
-              {expense.usuario
-                ? `${expense.usuario.nombre} (${expense.usuario.rol})`
-                : "N/A"}
-            </p>
-          </div>
-          <p>
-            <span className="font-medium">Monto:</span>{" "}
-            {new Intl.NumberFormat("es-GT", {
-              style: "currency",
-              currency: "GTQ",
-            }).format(expense.monto)}
-          </p>
-          <p>
-            <span className="font-medium">Descripción:</span>{" "}
-            {expense.descripcion || "Sin descripción"}
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  function SaleItem({ sale }: SaleItemProps) {
-    return (
-      <Card key={sale.id} className="w-full shadow-md">
-        <CardContent className="p-4">
-          {/* Encabezado */}
-          <div className="mb-4">
-            <p className="text-sm font-medium">No.#{sale.id}</p>
-          </div>
-
-          {/* Detalles de la venta */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <p className="text-sm">
-              <span className="font-medium">Fecha:</span>{" "}
-              {formatearFecha(sale.fechaVenta)}
-            </p>
-            <p className="text-sm">
-              <span className="font-medium">Total:</span>{" "}
-              {new Intl.NumberFormat("es-GT", {
-                style: "currency",
-                currency: "GTQ",
-              }).format(sale.totalVenta)}
-            </p>
-          </div>
-
-          {/* Lista de productos */}
-          {sale.productos.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium mb-2">Productos:</h4>
-              <ul className="space-y-2">
-                {sale.productos.map((prod) => (
-                  <li
-                    key={prod.producto.id}
-                    className="p-2 border rounded-md bg-gray-50 dark:bg-transparent flex justify-between items-center"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">
-                        {prod.producto.nombre || "N/A"}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Código: {prod.producto.codigoProducto || "N/A"}
-                      </p>
-                    </div>
-                    <p className="text-sm font-medium">
-                      Cantidad: {prod.cantidad}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="w-full flex justify-center items-center py-16">
+        <p className="text-sm text-muted-foreground">
+          Cargando registro de caja...
+        </p>
+      </div>
     );
   }
 
   return (
-    <>
-      <Card className="w-full max-w-2xl mx-auto shadow-lg">
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* CARD PRINCIPAL */}
+      <Card className="w-full border border-[#e2b7b8] dark:border-[#7b2c7d] rounded-2xl">
         {isCashRegistOpen ? (
           <>
-            <CardHeader>
-              <CardTitle className="text-center">Registro de Caja</CardTitle>
-              <h3 className="text-sm text-gray-500">
-                {userName ? userName : ""}
-              </h3>
-              <CardDescription className="text-center">
-                Ingrese los detalles del cierre de caja
-              </CardDescription>
+            <CardHeader className="border-b border-[#e2b7b8]/60 dark:border-[#7b2c7d]/60 bg-[#fff5f7] dark:bg-[#7b2c7d]/10 rounded-t-2xl">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-[#7b2c7d]">
+                    <CoinsIcon className="h-5 w-5" />
+                    Registro de Caja Abierto
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {userName} · desde{" "}
+                    {registroAbierto
+                      ? formatearFecha(registroAbierto.fechaInicio)
+                      : ""}
+                  </CardDescription>
+                </div>
+                <Badge className="bg-[#7b2c7d] text-white text-xs">
+                  ABIERTO
+                </Badge>
+              </div>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-4">
-                {/* Inputs para el cierre */}
+
+            <form onSubmit={handleSubmitCierre}>
+              <CardContent className="space-y-4 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="saldoInicial">Saldo Inicial</Label>
+                    <Label htmlFor="saldoInicial">Saldo inicial</Label>
                     <Input
                       id="saldoInicial"
                       name="saldoInicial"
                       type="number"
-                      value={registroAbierto?.saldoInicial}
+                      value={registroAbierto?.saldoInicial ?? 0}
                       readOnly
-                      placeholder="0.00"
+                      className="bg-muted/50"
+                      onWheel={handleNumberWheel}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="saldoFinal">Saldo Final de Salida</Label>
+                    <Label htmlFor="saldoFinal">Saldo final</Label>
                     <Input
                       id="saldoFinal"
                       name="saldoFinal"
                       type="number"
-                      value={formData.saldoFinal}
-                      onChange={handleInputChange}
+                      value={formDataCierre.saldoFinal}
+                      onChange={handleInputCierreChange}
+                      onWheel={handleNumberWheel}
                       placeholder="0.00"
+                      inputMode="decimal"
+                      aria-label="Saldo final de salida"
                     />
                   </div>
                 </div>
@@ -643,74 +360,192 @@ export default function RegistroCaja() {
                     id="comentario"
                     name="comentario"
                     value={
-                      formData.comentario || registroAbierto?.comentario || ""
+                      formDataCierre.comentario ??
+                      registroAbierto?.comentario ??
+                      ""
                     }
-                    onChange={handleInputChange}
-                    placeholder="Ingrese un comentario (opcional)"
+                    onChange={handleInputCierreChange}
+                    placeholder="Comentarios del cierre (opcional)"
+                    rows={3}
                   />
                 </div>
+
+                {/* Resumen rápido */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="border rounded-xl p-3 bg-[#fff9fb] dark:bg-transparent">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <CoinsIcon className="h-3 w-3 text-[#7b2c7d]" />
+                      Saldo inicial
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {new Intl.NumberFormat("es-GT", {
+                        style: "currency",
+                        currency: "GTQ",
+                      }).format(
+                        resumen?.saldoInicial ??
+                          registroAbierto?.saldoInicial ??
+                          0
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="border rounded-xl p-3 bg-[#fff9fb] dark:bg-transparent">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <CreditCard className="h-3 w-3 text-[#7b2c7d]" />
+                      Ventas
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {new Intl.NumberFormat("es-GT", {
+                        style: "currency",
+                        currency: "GTQ",
+                      }).format(resumen?.totalVentas ?? totalVentas)}
+                    </p>
+                  </div>
+
+                  <div className="border rounded-xl p-3 bg-[#fff9fb] dark:bg-transparent">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Coins className="h-3 w-3 text-[#7b2c7d]" />
+                      Egresos
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {new Intl.NumberFormat("es-GT", {
+                        style: "currency",
+                        currency: "GTQ",
+                      }).format(resumen?.totalEgresos ?? totalEgresos)}
+                    </p>
+                  </div>
+
+                  <div className="border rounded-xl p-3 bg-[#fff9fb] dark:bg-transparent">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Banknote className="h-3 w-3 text-[#7b2c7d]" />
+                      Depósitos
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {new Intl.NumberFormat("es-GT", {
+                        style: "currency",
+                        currency: "GTQ",
+                      }).format(resumen?.totalDepositos ?? totalDepositos)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Resumen esperado vs contado */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div className="border rounded-xl p-3 bg-[#fff9fb] dark:bg-transparent">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <CoinsIcon className="h-3 w-3 text-[#7b2c7d]" />
+                      Saldo esperado
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {new Intl.NumberFormat("es-GT", {
+                        style: "currency",
+                        currency: "GTQ",
+                      }).format(saldoTeoricoFinal)}
+                    </p>
+                  </div>
+                </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="pt-0 flex flex-col gap-2">
                 <Button
-                  variant="destructive"
                   type="button"
-                  className="w-full"
-                  onClick={() => setCloseConfirm(true)}
+                  className="w-full bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+                  onClick={() => setOpenConfirmCierre(true)}
+                  disabled={closeCajaMutation.isPending}
                 >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
                   Cerrar caja
                 </Button>
-                <Dialog open={closeConfirm} onOpenChange={setCloseConfirm}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle className="text-center">
-                        Confirmar cierre
-                      </DialogTitle>
-                      <DialogDescription className="text-center">
-                        ¿Estás seguro de cerrar el turno? Esta acción no puede
-                        deshacerse.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => setCloseConfirm(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        className="w-full"
-                        disabled={truncateClose}
-                        onClick={handleSubmit}
-                      >
-                        Confirmar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
               </CardFooter>
             </form>
+
+            {/* Dialog Cierre */}
+            <Dialog
+              open={openConfirmCierre}
+              onOpenChange={setOpenConfirmCierre}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-center">
+                    Confirmar cierre de caja
+                  </DialogTitle>
+                  <DialogDescription className="text-center">
+                    Revisa que el saldo final y los movimientos sean correctos.
+                    Esta acción no puede deshacerse.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setOpenConfirmCierre(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="w-full bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+                    disabled={closeCajaMutation.isPending}
+                    onClick={() => handleSubmitCierre()}
+                  >
+                    {closeCajaMutation.isPending && (
+                      <span className="mr-2 h-4 w-4 animate-spin border-2 border-white border-t-transparent rounded-full" />
+                    )}
+                    Confirmar cierre
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         ) : (
           <>
-            <CardHeader>
-              <CardTitle className="text-center">Registrar Turno</CardTitle>
-              <h3 className="text-sm text-gray-500">
-                {userName ? userName : ""}
-              </h3>
+            <CardHeader className="border-b border-[#e2b7b8]/60 dark:border-[#7b2c7d]/60 bg-[#fff5f7] dark:bg-[#7b2c7d]/10 rounded-t-2xl">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-[#7b2c7d]">
+                    <CoinsIcon className="h-5 w-5" />
+                    Registrar inicio de turno
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {userName}
+                  </CardDescription>
+                </div>
+                <Badge className="bg-[#e2b7b8] text-[#7b2c7d] text-xs">
+                  CAJA CERRADA
+                </Badge>
+              </div>
             </CardHeader>
             <form onSubmit={handleSubmitInicio}>
-              <CardContent className="space-y-4">
-                {/* Inputs para abrir el registro */}
+              <CardContent className="space-y-4 pt-4">
+                {ultimaCajaCerrada && (
+                  <div className="text-xs text-muted-foreground bg-[#fff5f7] dark:bg-[#7b2c7d]/10 border border-dashed border-[#e2b7b8]/80 rounded-xl p-3">
+                    Última caja cerrada por{" "}
+                    <span className="font-semibold">
+                      {ultimaCajaCerrada.usuario?.nombre}
+                    </span>{" "}
+                    el {formatearFecha(ultimaCajaCerrada.fechaCierre)} con un
+                    saldo final de{" "}
+                    <span className="font-semibold">
+                      {new Intl.NumberFormat("es-GT", {
+                        style: "currency",
+                        currency: "GTQ",
+                      }).format(ultimaCajaCerrada.saldoFinal ?? 0)}
+                    </span>
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="saldoInicial">Saldo Inicial</Label>
+                  <Label htmlFor="saldoInicial">Saldo inicial</Label>
                   <Input
                     id="saldoInicial"
                     name="saldoInicial"
                     type="number"
                     value={formDataInicio.saldoInicial}
-                    onChange={handleInputChangeInicio}
+                    onChange={handleInputInicioChange}
+                    onWheel={handleNumberWheel}
                     placeholder="0.00"
+                    inputMode="decimal"
+                    aria-label="Saldo inicial en caja"
                   />
                 </div>
                 <div className="space-y-2">
@@ -719,117 +554,66 @@ export default function RegistroCaja() {
                     id="comentario"
                     name="comentario"
                     value={formDataInicio.comentario}
-                    onChange={handleInputChangeInicio}
-                    placeholder="Ingrese un comentario (opcional)"
+                    onChange={handleInputInicioChange}
+                    placeholder="Comentario opcional"
+                    rows={3}
                   />
                 </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="pt-0 flex flex-col gap-2">
                 <Button
-                  className="w-full"
                   type="button"
-                  onClick={() => setOpenConfirm(true)}
+                  className="w-full bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+                  onClick={() => setOpenConfirmInicio(true)}
+                  disabled={openCajaMutation.isPending}
                 >
-                  Iniciar Turno
+                  <CoinsIcon className="h-4 w-4 mr-2" />
+                  Iniciar turno
                 </Button>
-                <Dialog open={openConfirm} onOpenChange={setOpenConfirm}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle className="text-center">
-                        Confirmar inicio
-                      </DialogTitle>
-                      <DialogDescription className="text-center">
-                        ¿Estás seguro de iniciar el turno? Esta acción no puede
-                        deshacerse.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => setOpenConfirm(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        className="w-full"
-                        disabled={truncateOpen}
-                        onClick={handleSubmitInicio}
-                      >
-                        Confirmar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
               </CardFooter>
             </form>
+
+            {/* Dialog Inicio */}
+            <Dialog
+              open={openConfirmInicio}
+              onOpenChange={setOpenConfirmInicio}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-center">
+                    Confirmar inicio de caja
+                  </DialogTitle>
+                  <DialogDescription className="text-center">
+                    Se registrará el saldo inicial y se asociarán los
+                    movimientos a este turno.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setOpenConfirmInicio(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="w-full bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+                    disabled={openCajaMutation.isPending}
+                    onClick={() => handleSubmitInicio()}
+                  >
+                    {openCajaMutation.isPending && (
+                      <span className="mr-2 h-4 w-4 animate-spin border-2 border-white border-t-transparent rounded-full" />
+                    )}
+                    Confirmar inicio
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </Card>
-      <div className="mt-8 space-y-4">
-        <Accordion type="single" collapsible className="w-full">
-          <AccordionItem value="deposits">
-            <AccordionTrigger>
-              <h3 className="text-lg font-semibold">
-                Depósitos ({depositos.length})
-              </h3>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-4 p-4">
-                {depositos && depositos.length > 0 ? (
-                  depositos.map((deposit) => (
-                    <DepositItem key={deposit.id} deposit={deposit} />
-                  ))
-                ) : (
-                  <p className="text-center text-gray-500">
-                    No hay depósitos registrados.
-                  </p>
-                )}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="expenses">
-            <AccordionTrigger>
-              <h3 className="text-lg font-semibold">
-                Egresos ({egreso.length})
-              </h3>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-4 p-4">
-                {egreso && egreso.length > 0 ? (
-                  egreso.map((expense) => (
-                    <ExpenseItem key={expense.id} expense={expense} />
-                  ))
-                ) : (
-                  <p className="text-center text-gray-500">
-                    No hay egresos registrados.
-                  </p>
-                )}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="sales">
-            <AccordionTrigger>
-              <h3 className="text-lg font-semibold">
-                Ventas ({ventas.length})
-              </h3>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-4 p-4">
-                {ventas && ventas.length > 0 ? (
-                  ventas.map((sale) => <SaleItem key={sale.id} sale={sale} />)
-                ) : (
-                  <p className="text-center text-gray-500">
-                    No hay ventas registradas.
-                  </p>
-                )}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
-    </>
+    </div>
   );
 }

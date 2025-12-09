@@ -1,29 +1,21 @@
 "use client";
 import type { EmpaqueConStock } from "./EmpaquesType";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Package2, AlertTriangle, Building2 } from "lucide-react";
+import { Package2, AlertTriangle, Building2, Box } from "lucide-react";
 
 interface PropsFromDashboard {
   empaques: EmpaqueConStock[];
@@ -41,7 +33,6 @@ function EmpaquesStock({
   empaques,
   lowStockThreshold = 10,
 }: PropsFromDashboard) {
-  // Function to aggregate stock by branch
   const getAggregatedStockBySucursal = (
     stocks: EmpaqueConStock["stock"]
   ): AggregatedStock[] => {
@@ -76,134 +67,140 @@ function EmpaquesStock({
     return Array.from(stockMap.values());
   };
 
-  // Function to calculate total stock across all branches
-  const getTotalStock = (stocks: EmpaqueConStock["stock"]): number => {
-    return stocks.reduce((total, stock) => total + stock.cantidad, 0);
-  };
+  const getTotalStock = (stocks: EmpaqueConStock["stock"]): number =>
+    stocks.reduce((total, stock) => total + stock.cantidad, 0);
 
-  // Check if any empaque has stock
   const hasEmpaques = empaques.length > 0;
 
+  const empaquesOrdenados = empaques
+    .map((empaque) => {
+      const aggregatedStocks = getAggregatedStockBySucursal(empaque.stock);
+      const totalStock = getTotalStock(empaque.stock);
+      const isLowStock = totalStock < lowStockThreshold;
+
+      return {
+        ...empaque,
+        aggregatedStocks,
+        totalStock,
+        isLowStock,
+      };
+    })
+    .sort((a, b) => a.totalStock - b.totalStock);
+
   return (
-    <Card className="w-full shadow-lg">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+    <Card className="w-full shadow-lg border border-[#f3d5e0] dark:border-[#7b2c7d]/50 rounded-2xl">
+      <CardHeader className="pb-2 border-b border-[#f3d5e0]/60 dark:border-[#7b2c7d]/50 bg-[#fff5f7] dark:bg-[#7b2c7d]/10 rounded-t-2xl">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
-            <Package2 className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-lg">Stocks de Empaques</CardTitle>
+            <Package2 className="h-4 w-4 text-[#7b2c7d]" />
+            <div className="flex flex-col">
+              <CardTitle className="text-sm text-[#7b2c7d]">
+                Stocks de Empaques
+              </CardTitle>
+              <CardDescription className="text-[10px]">
+                Inventario actual de empaques por sucursal
+              </CardDescription>
+            </div>
           </div>
+
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <AlertTriangle className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                <div className="flex items-center text-[10px] text-muted-foreground cursor-default">
+                  <AlertTriangle className="h-3 w-3 mr-1 text-amber-500" />
                   Stock bajo: &lt; {lowStockThreshold}
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>
+                <p className="text-xs">
                   Los empaques con stock menor a {lowStockThreshold} se marcan
-                  como bajos
+                  como bajos.
                 </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
-        <CardDescription className="text-xs mt-1">
-          Inventario actual de empaques por sucursal
-        </CardDescription>
       </CardHeader>
-      <CardContent>
+
+      <CardContent className="pt-2">
         {!hasEmpaques ? (
-          <div className="text-center py-6 text-muted-foreground">
-            No hay empaques registrados
+          <div className="text-center py-6 text-sm text-muted-foreground">
+            No hay empaques registrados.
           </div>
         ) : (
-          <ScrollArea className="h-[calc(100vh-170px)] pr-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[180px]">Empaque</TableHead>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Sucursales</TableHead>
-                  <TableHead className="text-right">Stock Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {empaques.map((empaque) => {
-                  const aggregatedStocks = getAggregatedStockBySucursal(
-                    empaque.stock
-                  );
-                  const totalStock = getTotalStock(empaque.stock);
-                  const isLowStock = totalStock < lowStockThreshold;
+          <ScrollArea className="h-[calc(100vh-200px)] pr-2">
+            {/* Más compacto: menor gap, paddings pequeños */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+              {empaquesOrdenados.map((empaque) => (
+                <div
+                  key={empaque.id}
+                  className="rounded-xl border border-[#f3d5e0] dark:border-[#7b2c7d]/40 bg-white dark:bg-[#0b0610] px-2.5 py-2 flex flex-col gap-1.5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-1.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Box className="h-3 w-3 text-[#7b2c7d]" />
+                        <p className="text-[11px] font-semibold truncate">
+                          {empaque.nombre}
+                        </p>
+                      </div>
+                      <p
+                        className="text-[10px] text-muted-foreground truncate"
+                        title={empaque.descripcion}
+                      >
+                        {empaque.descripcion}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Código:{" "}
+                        <span className="font-medium">
+                          {empaque.codigoProducto}
+                        </span>
+                      </p>
+                    </div>
 
-                  return (
-                    <TableRow key={empaque.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex flex-col">
-                          <span>{empaque.nombre}</span>
-                          <span
-                            className="text-xs text-muted-foreground truncate max-w-[170px]"
-                            title={empaque.descripcion}
-                          >
-                            {empaque.descripcion}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {empaque.codigoProducto}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1.5">
-                          {aggregatedStocks.map((stock) => (
-                            <div
-                              key={stock.sucursalId}
-                              className="flex items-center gap-1.5"
-                            >
-                              <Building2 className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs">
-                                {stock.sucursalNombre}:
-                              </span>
-                              <Badge
-                                className={`text-[10px] h-5 px-1.5 font-semibold border-0 ${
-                                  stock.cantidadTotal < lowStockThreshold
-                                    ? "bg-[#f4b6c2] text-[#6a3266]" // stock bajo: rosa claro + púrpura
-                                    : "bg-[#a85c9c] text-white" // stock bueno: lila fuerte
-                                }`}
-                              >
-                                {stock.cantidadTotal}
-                              </Badge>
+                    <Badge
+                      className={`ml-1 text-[10px] h-5 px-1.5 font-semibold flex items-center gap-1 border-0 ${
+                        empaque.isLowStock
+                          ? "bg-[#f4b6c2] text-[#6a3266]"
+                          : "bg-[#a85c9c] text-white"
+                      }`}
+                    >
+                      {empaque.isLowStock && (
+                        <AlertTriangle className="h-3 w-3" />
+                      )}
+                      {empaque.totalStock}
+                    </Badge>
+                  </div>
 
-                              <span className="text-[10px] text-muted-foreground">
-                                (Últ. ingreso:{" "}
-                                {new Date(
-                                  stock.ultimoIngreso
-                                ).toLocaleDateString()}
-                                )
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge
-                          className={`ml-auto text-[10px] h-5 px-1.5 font-medium  items-center gap-1 border-0 ${
-                            isLowStock
-                              ? "bg-[#f4b6c2] text-[#6a3266]" // Rosa pastel, texto púrpura
-                              : "bg-[#a85c9c] text-white" // Lila fuerte, texto blanco
-                          }`}
+                  <div className="mt-0.5 space-y-1">
+                    {empaque.aggregatedStocks
+                      .sort((a, b) => a.cantidadTotal - b.cantidadTotal)
+                      .map((stock) => (
+                        <div
+                          key={stock.sucursalId}
+                          className="flex items-center justify-between gap-1.5 rounded-lg bg-[#fff5f7] dark:bg-[#7b2c7d]/10 px-2 py-0.5"
                         >
-                          {isLowStock && (
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                          )}
-                          {totalStock}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Building2 className="h-3 w-3 text-[#7b2c7d]" />
+                            <span className="text-[10px] font-medium truncate">
+                              {stock.sucursalNombre}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-0">
+                            <span className="text-[9px] text-muted-foreground">
+                              Últ. ingreso:{" "}
+                              {new Date(stock.ultimoIngreso).toLocaleDateString(
+                                "es-GT"
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </ScrollArea>
         )}
       </CardContent>

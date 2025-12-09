@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+"use client";
+
+import { useState } from "react";
+import axios from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 import {
   Table,
   TableBody,
@@ -10,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
 import {
   AlertTriangle,
   Barcode,
@@ -20,17 +23,13 @@ import {
   Coins,
   Edit,
   Eye,
-  FileText,
   List,
   Loader2,
+  Power,
   Tag,
   X,
 } from "lucide-react";
-import axios from "axios";
 import { toast } from "sonner";
-import { SimpleProvider } from "@/Types/Proveedor/SimpleProveedor";
-import { ProductsInventary } from "@/Types/Inventary/ProductsInventary";
-
 import {
   Pagination,
   PaginationContent,
@@ -45,7 +44,6 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-
 import {
   Dialog,
   DialogContent,
@@ -54,25 +52,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 import utc from "dayjs/plugin/utc";
 import localizedFormat from "dayjs/plugin/localizedFormat";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Link } from "react-router-dom";
 
 dayjs.extend(utc);
 dayjs.extend(localizedFormat);
 dayjs.locale("es");
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 const formatearFecha = (fecha: string) => {
-  // Formateo en UTC sin conversión a local
   return dayjs.utc(fecha).format("DD/MM/YYYY");
 };
+
+// =======================
+// Tipos
+// =======================
 
 interface ProductCreate {
   nombre: string;
@@ -83,10 +85,15 @@ interface ProductCreate {
   precioCosto: number | null;
 }
 
-interface Categorias {
+type EmpaqueStock = {
   id: number;
-  nombre: string;
-}
+  cantidad: number;
+  fechaIngreso: string;
+  sucursal: {
+    id: number;
+    nombre: string;
+  };
+};
 
 type ProductoEmpaque = {
   id: number;
@@ -95,44 +102,161 @@ type ProductoEmpaque = {
   codigoProducto: string;
   precioCosto: number | null;
   precioVenta: number | null;
-  stock: {
-    id: number;
-    cantidad: number;
-    fechaIngreso: string;
-    sucursal: {
-      id: number;
-      nombre: string;
-    };
-  }[];
+  activo: boolean; // 👈 para desactivar/activar
+  stock: EmpaqueStock[];
 };
+
+interface UpdateEmpaquePayload {
+  id: number;
+  body: {
+    nombre: string;
+    descripcion: string;
+    codigoProducto: string;
+    precioCosto: number | null;
+    precioVenta: number | null;
+  };
+}
+
+interface ToggleActivoPayload {
+  id: number;
+}
+
+interface MarkDeletedPayload {
+  id: number;
+}
+
+// =======================
+// Query Keys
+// =======================
+
+const empaqueKeys = {
+  root: ["empaques"] as const,
+  list: ["empaques", "list"] as const,
+};
+
+// =======================
+// Custom Hooks
+// =======================
+
+function useEmpaquesInventario() {
+  return useQuery<ProductoEmpaque[]>({
+    queryKey: empaqueKeys.list,
+    queryFn: async () => {
+      const { data } = await axios.get(`${API_URL}/empaque/inventario`);
+      return data;
+    },
+    staleTime: 1000 * 30,
+    gcTime: 1000 * 60 * 5,
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: "always",
+  });
+}
+
+function useCreateEmpaque() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: ProductCreate) => {
+      const { data } = await axios.post(`${API_URL}/empaque`, payload);
+      return data as ProductoEmpaque;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: empaqueKeys.list });
+    },
+  });
+}
+
+function useUpdateEmpaque() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, body }: UpdateEmpaquePayload) => {
+      const { data } = await axios.patch(`${API_URL}/empaque/${id}`, body);
+      return data as ProductoEmpaque;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: empaqueKeys.list });
+    },
+  });
+}
+
+function useMarkDeletedEmpaque() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: MarkDeletedPayload) => {
+      const { data } = await axios.delete(
+        `${API_URL}/empaque/mark-deleted/${id}`
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: empaqueKeys.list });
+    },
+  });
+}
+
+function useToggleActivoEmpaque() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    // ⚠️ Ajusta la ruta cuando crees el endpoint en backend
+    mutationFn: async ({ id }: ToggleActivoPayload) => {
+      const { data } = await axios.patch(
+        `${API_URL}/empaque/toggle-active/${id}`
+      );
+      return data as ProductoEmpaque;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: empaqueKeys.list });
+    },
+  });
+}
+
+// =======================
+// Componente principal
+// =======================
 
 export default function InventarioEmpaques() {
   const userId = useStore((state) => state.userId);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState("");
+  const [sortBy, setSortBy] = useState<"" | "quantity" | "price">("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [empaquesInventary, setEmpaquesInventary] = useState<ProductoEmpaque[]>(
-    []
-  );
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
-  const getEmpaquesInventario = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/empaque`);
-      if (response.status === 200) {
-        setEmpaquesInventary(response.data);
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al obtener los empaques");
+  // React Query: listado de empaques
+  const {
+    data: empaquesInventary = [],
+    isLoading,
+    isFetching,
+  } = useEmpaquesInventario();
+
+  // Mutations
+  const createEmpaqueMutation = useCreateEmpaque();
+  const updateEmpaqueMutation = useUpdateEmpaque();
+  const markDeletedEmpaqueMutation = useMarkDeletedEmpaque();
+  const toggleActivoEmpaqueMutation = useToggleActivoEmpaque();
+
+  // Crear nuevo empaque
+  const [productCreate, setProductCreate] = useState<ProductCreate>({
+    precioCosto: null,
+    codigoProducto: "",
+    descripcion: "",
+    nombre: "",
+    precioVenta: 0,
+    creadoPorId: userId,
+  });
+
+  const handleSort = (column: "quantity" | "price") => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
     }
   };
-
-  useEffect(() => {
-    getEmpaquesInventario();
-  }, []);
 
   const filteredEmpaques = empaquesInventary.filter((empaque) => {
     return (
@@ -143,14 +267,14 @@ export default function InventarioEmpaques() {
 
   const sortedEmpaques = [...filteredEmpaques].sort((a, b) => {
     if (sortBy === "quantity") {
-      return sortOrder === "asc"
-        ? (a.stock[0]?.cantidad || 0) - (b.stock[0]?.cantidad || 0)
-        : (b.stock[0]?.cantidad || 0) - (a.stock[0]?.cantidad || 0);
+      const qa = a.stock.reduce((acc, s) => acc + (s.cantidad || 0), 0);
+      const qb = b.stock.reduce((acc, s) => acc + (s.cantidad || 0), 0);
+      return sortOrder === "asc" ? qa - qb : qb - qa;
     }
     if (sortBy === "price") {
-      return sortOrder === "asc"
-        ? (a.precioVenta ?? 0) - (b.precioVenta ?? 0)
-        : (b.precioVenta ?? 0) - (a.precioVenta ?? 0);
+      const pa = a.precioVenta ?? 0;
+      const pb = b.precioVenta ?? 0;
+      return sortOrder === "asc" ? pa - pb : pb - pa;
     }
     return 0;
   });
@@ -169,139 +293,50 @@ export default function InventarioEmpaques() {
     return sum + totalStock;
   }, 0);
 
-  const [productCreate, setProductCreate] = useState<ProductCreate>({
-    precioCosto: null,
-    codigoProducto: "",
-    descripcion: "",
-    nombre: "",
-    precioVenta: 0,
-    creadoPorId: userId,
-  });
-
-  const handleSort = (column: string) => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(column);
-      setSortOrder("asc");
-    }
+  const onPageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
-  // CREAR NUEVO PRODUCTO
-  const handleAddProduct = async () => {
-    console.log("Enviando...");
+  // Crear empaque
+  const [openCreateEmpaque, setOpenCreateEmpaque] = useState(false);
 
+  const handleAddProduct = async () => {
     if (
       !productCreate.nombre ||
       !productCreate.codigoProducto ||
       !productCreate.precioVenta
     ) {
-      toast.info("Algunos campos son obligatorios");
+      toast.info("Nombre, código y precio de venta son obligatorios");
       return;
     }
 
     if (!userId) {
-      toast.warning("Falta informacion del usuario");
+      toast.warning("Falta información del usuario");
+      return;
     }
 
     try {
-      const response = await axios.post(`${API_URL}/empaque`, {
-        ...productCreate,
+      await toast.promise(createEmpaqueMutation.mutateAsync(productCreate), {
+        loading: "Creando empaque...",
+        success: "Empaque creado correctamente.",
+        error: "Error al crear el empaque.",
       });
 
-      if (response.status === 201) {
-        toast.success("Producto creado");
-        setProductCreate({
-          codigoProducto: "",
-          descripcion: "",
-          nombre: "",
-          precioCosto: null,
-          precioVenta: null,
-          creadoPorId: userId,
-        });
-        getEmpaquesInventario();
-        setOpenCreateEmpaque(false);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("Error al crear producto");
+      setProductCreate({
+        codigoProducto: "",
+        descripcion: "",
+        nombre: "",
+        precioCosto: null,
+        precioVenta: 0,
+        creadoPorId: userId,
+      });
+      setOpenCreateEmpaque(false);
+    } catch {
+      // error ya manejado por toast.promise
     }
   };
 
-  const [openCreateEmpaque, setOpenCreateEmpaque] = useState(false);
-
-  const [categorias, setCategorias] = useState<Categorias[]>([]);
-  const [proveedores, setProveedores] = useState<SimpleProvider[]>([]);
-
-  useEffect(() => {
-    const getCategories = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/categoria/`);
-        if (response.status === 200) {
-          setCategorias(response.data);
-        }
-      } catch (error) {
-        console.log(error);
-        toast.error("Error al pedir categorias");
-      }
-    };
-    getCategories();
-  }, []);
-
-  useEffect(() => {
-    const getProveedores = async () => {
-      try {
-        const response = await axios.get(
-          `${API_URL}/proveedor/simple-proveedor`
-        );
-        if (response.status === 200) {
-          setProveedores(response.data);
-        }
-      } catch (error) {
-        console.log(error);
-        toast.error("Error al pedir categorias");
-      }
-    };
-    getProveedores();
-  }, []);
-
-  const [productsInventary, setProductsInventary] = useState<
-    ProductsInventary[]
-  >([]);
-
-  const getProductosInventario = async () => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/products/products/for-inventary`
-      );
-      if (response.status === 200) {
-        setProductsInventary(response.data);
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error("Error al pedir categorias");
-    }
-  };
-
-  useEffect(() => {
-    getProductosInventario();
-  }, []);
-
-  //FILTER =====>
-
-  console.log("Los productos del inventario son: ", productsInventary);
-  console.log("El producto a crear es: ", productCreate);
-  console.log("las categorias son: ", categorias);
-  console.log("Los proveedores son: ", proveedores);
-  console.log("Los precios de venta son: ", productCreate.precioVenta);
-
-  // PAGINACIÓN
-
-  const onPageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  // ABRIR DIALOG DE EDICION
+  // Edición
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedEmpaque, setSelectedEmpaque] =
     useState<ProductoEmpaque | null>(null);
@@ -327,442 +362,563 @@ export default function InventarioEmpaques() {
 
   const handleEditSubmit = async () => {
     if (!selectedEmpaque) return;
+
     try {
-      const response = await axios.patch(
-        `${API_URL}/empaque/${selectedEmpaque.id}`,
-        editData
+      await toast.promise(
+        updateEmpaqueMutation.mutateAsync({
+          id: selectedEmpaque.id,
+          body: editData,
+        }),
+        {
+          loading: "Actualizando empaque...",
+          success: "Empaque actualizado correctamente.",
+          error: "Error al actualizar el empaque.",
+        }
       );
-      if (response.status === 200) {
-        toast.success("Empaque actualizado");
-        setEditDialogOpen(false);
-        getEmpaquesInventario();
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al actualizar el empaque");
+
+      setEditDialogOpen(false);
+    } catch {
+      // manejado por toast.promise
     }
   };
 
+  // Marcar eliminado
   const [openDelete, setOpenDelete] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleMarkDeletedEmpaque = async () => {
-    if (isDeleting || !selectedEmpaque) return;
-    setIsDeleting(true);
+    if (!selectedEmpaque) return;
+
     try {
-      const { status } = await axios.delete(
-        `${API_URL}/empaque/mark-deleted/${selectedEmpaque.id}`
+      await toast.promise(
+        markDeletedEmpaqueMutation.mutateAsync({
+          id: selectedEmpaque.id,
+        }),
+        {
+          loading: "Eliminando empaque...",
+          success: "Empaque eliminado correctamente.",
+          error: "Error al eliminar el empaque.",
+        }
       );
-      if (status === 200) {
-        toast.success("Empaque eliminado");
-        setOpenDelete(false);
-        getEmpaquesInventario(); // refetch
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al eliminar el empaque");
-    } finally {
-      setIsDeleting(false);
+
+      setOpenDelete(false);
+      setSelectedEmpaque(null);
+    } catch {
+      // manejado por toast.promise
     }
   };
+
+  // Desactivar / activar empaque
+  const [openToggleActive, setOpenToggleActive] = useState(false);
+  const isAdminDeactivable = true; // 👈 tú luego calculas esto como gustes
+
+  const handleToggleActivoEmpaque = async () => {
+    if (!selectedEmpaque) return;
+
+    try {
+      await toast.promise(
+        toggleActivoEmpaqueMutation.mutateAsync({
+          id: selectedEmpaque.id,
+        }),
+        {
+          loading: selectedEmpaque.activo
+            ? "Desactivando empaque..."
+            : "Reactivando empaque...",
+          success: selectedEmpaque.activo
+            ? "Empaque desactivado. Ya no se podrá usar en ventas."
+            : "Empaque reactivado correctamente.",
+          error: "No se pudo cambiar el estado del empaque.",
+        }
+      );
+
+      setOpenToggleActive(false);
+      setSelectedEmpaque(null);
+    } catch {
+      // manejado por toast.promise
+    }
+  };
+
+  // Loading general
+  if (isLoading) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center py-16 gap-2">
+        <Loader2 className="h-6 w-6 animate-spin text-[#7b2c7d]" />
+        <p className="text-sm text-muted-foreground">
+          Cargando inventario de empaques...
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto p-4 shadow-xl">
-      <h1 className="text-lg font-bold mb-4">
-        Administrador de inventario de empaques
-      </h1>
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold flex items-center gap-2 text-[#7b2c7d]">
+            <Box className="h-5 w-5" />
+            Administrador de inventario de empaques
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Gestiona empaques, precios y stock por sucursal.
+          </p>
+          <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#e2b7b8]/80 bg-[#fff5f7]/80 px-3 py-1 text-xs">
+            <Tag className="h-3 w-3 text-[#7b2c7d]" />
+            <span className="font-medium">
+              Inventario total: {totalInventoryCount} unidades
+            </span>
+          </div>
+        </div>
 
-      <div className="bg-muted p-4 rounded-lg mb-4">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-          <div className="text-lg font-semibold">
-            Inventario Total: {totalInventoryCount} items
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <div className="relative flex-1">
+            <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Buscar por nombre o código"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="pl-9"
+            />
           </div>
 
-          <Input
-            type="text"
-            placeholder="Buscar por nombre o código"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-1/2 mt-2 md:mt-0"
-          />
-          <Barcode className="h-6 w-6 text-gray-500" />
-
-          <div className="flex space-x-2">
-            <Dialog
-              open={openCreateEmpaque}
-              onOpenChange={setOpenCreateEmpaque}
+          <Dialog open={openCreateEmpaque} onOpenChange={setOpenCreateEmpaque}>
+            <Button
+              type="button"
+              className="bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white whitespace-nowrap"
+              onClick={() => setOpenCreateEmpaque(true)}
             >
-              <Button
-                onClick={() => {
-                  setOpenCreateEmpaque(true);
+              + Añadir empaque
+            </Button>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="text-center">
+                  Añadir nuevo empaque
+                </DialogTitle>
+                <DialogDescription className="text-center">
+                  Crea un empaque con su código único y precios base.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddProduct();
                 }}
               >
-                Añadir nuevo empaque
-              </Button>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="text-center">
-                    Añadir nuevo producto
-                  </DialogTitle>
-                </DialogHeader>
-
-                <form
-                  onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
-                    e.preventDefault();
-                    handleAddProduct();
-                  }}
-                >
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="nombre" className="text-right">
-                        Producto
-                      </Label>
-                      <div className="col-span-3 relative">
-                        <Box className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
-                        <Input
-                          onChange={(e) =>
-                            setProductCreate({
-                              ...productCreate,
-                              nombre: e.target.value,
-                            })
-                          }
-                          value={productCreate.nombre}
-                          id="nombre"
-                          name="nombre"
-                          placeholder="Nombre del producto"
-                          className="pl-10 shadow-sm rounded-md"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="code" className="text-right">
-                        Código Empaque
-                      </Label>
-                      <div className="col-span-3 relative">
-                        <Barcode className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
-                        <Input
-                          value={productCreate.codigoProducto}
-                          onChange={(e) =>
-                            setProductCreate({
-                              ...productCreate,
-                              codigoProducto: e.target.value,
-                            })
-                          }
-                          id="code"
-                          name="code"
-                          placeholder="Código único producto"
-                          className="pl-10 shadow-sm rounded-md"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="desc" className="text-right">
-                        Descripción
-                      </Label>
-                      <div className="col-span-3 relative">
-                        <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
-                        <Textarea
-                          value={productCreate.descripcion}
-                          onChange={(e) =>
-                            setProductCreate({
-                              ...productCreate,
-                              descripcion: e.target.value,
-                            })
-                          }
-                          placeholder="Breve descripción..."
-                          id="desc"
-                          name="desc"
-                          className="pl-10 shadow-sm rounded-md"
-                        />
-                      </div>
-                    </div>
-
-                    {/* NUEVO CAMPO PARA PRECIO COSTO */}
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="precioCosto" className="text-right">
-                        Precio Costo
-                      </Label>
-                      <div className="col-span-3 relative">
-                        {/* Icono de dólar */}
-                        <Coins className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
-                        <Input
-                          value={productCreate.precioCosto ?? ""}
-                          onChange={(e) =>
-                            setProductCreate({
-                              ...productCreate,
-                              precioCosto: e.target.value
-                                ? Number(e.target.value)
-                                : null,
-                            })
-                          }
-                          id="precioCosto"
-                          name="precioCosto"
-                          type="number"
-                          step="1"
-                          placeholder="Precio costo del producto"
-                          className="pl-10 shadow-sm rounded-md border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Input for Price 1 */}
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="precioVenta" className="text-right">
-                        Precio Venta
-                      </Label>
-                      <div className="col-span-3 relative">
-                        <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
-                        <Input
-                          value={productCreate.precioVenta || ""} // If no value exists, show empty string
-                          onChange={(e) =>
-                            setProductCreate((previaData) => ({
-                              ...previaData,
-                              precioVenta: parseInt(e.target.value),
-                            }))
-                          } // Update the first price
-                          id="precioVenta"
-                          name="precioVenta"
-                          type="number"
-                          step="1"
-                          placeholder="0.00"
-                          className="pl-10 shadow-sm rounded-md"
-                        />
-                      </div>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="nombre" className="text-right">
+                      Empaque
+                    </Label>
+                    <div className="col-span-3 relative">
+                      <Box className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        onChange={(e) =>
+                          setProductCreate((prev) => ({
+                            ...prev,
+                            nombre: e.target.value,
+                          }))
+                        }
+                        value={productCreate.nombre}
+                        id="nombre"
+                        name="nombre"
+                        placeholder="Nombre del empaque"
+                        className="pl-9"
+                      />
                     </div>
                   </div>
-                  <DialogFooter>
-                    <Button type="submit">Añadir Producto</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="code" className="text-right">
+                      Código
+                    </Label>
+                    <div className="col-span-3 relative">
+                      <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={productCreate.codigoProducto}
+                        onChange={(e) =>
+                          setProductCreate((prev) => ({
+                            ...prev,
+                            codigoProducto: e.target.value,
+                          }))
+                        }
+                        id="code"
+                        name="code"
+                        placeholder="Código único de empaque"
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="desc" className="text-right">
+                      Descripción
+                    </Label>
+                    <div className="col-span-3 relative">
+                      <Textarea
+                        value={productCreate.descripcion}
+                        onChange={(e) =>
+                          setProductCreate((prev) => ({
+                            ...prev,
+                            descripcion: e.target.value,
+                          }))
+                        }
+                        placeholder="Breve descripción..."
+                        id="desc"
+                        name="desc"
+                        className="min-h-[80px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="precioCosto" className="text-right">
+                      Precio costo
+                    </Label>
+                    <div className="col-span-3 relative">
+                      <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={productCreate.precioCosto ?? ""}
+                        onChange={(e) =>
+                          setProductCreate((prev) => ({
+                            ...prev,
+                            precioCosto: e.target.value
+                              ? Number(e.target.value)
+                              : null,
+                          }))
+                        }
+                        id="precioCosto"
+                        name="precioCosto"
+                        type="number"
+                        step="1"
+                        placeholder="0.00"
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="precioVenta" className="text-right">
+                      Precio venta
+                    </Label>
+                    <div className="col-span-3 relative">
+                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={productCreate.precioVenta ?? ""}
+                        onChange={(e) =>
+                          setProductCreate((prev) => ({
+                            ...prev,
+                            precioVenta: e.target.value
+                              ? Number(e.target.value)
+                              : null,
+                          }))
+                        }
+                        id="precioVenta"
+                        name="precioVenta"
+                        type="number"
+                        step="1"
+                        placeholder="0.00"
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+                    disabled={createEmpaqueMutation.isPending}
+                  >
+                    {createEmpaqueMutation.isPending && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Añadir empaque
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Tabla */}
+      <div className="overflow-x-auto border border-[#e2b7b8]/80 dark:border-[#7b2c7d]/60 rounded-2xl bg-[#fff9fb]/60 dark:bg-[#020817]">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="bg-[#fff5f7]/80 dark:bg-[#7b2c7d]/20">
               <TableHead>Empaque</TableHead>
+              <TableHead>Estado</TableHead>
               <TableHead
                 className="cursor-pointer"
                 onClick={() => handleSort("quantity")}
               >
-                Cantidad en Stock
+                Cantidad total
               </TableHead>
-
-              <TableHead
-                className="cursor-pointer"
-                // onClick={() => handleSort("quantity")}
-              >
-                Fecha ingreso
-              </TableHead>
-
+              <TableHead>Fecha ingreso</TableHead>
               <TableHead
                 className="cursor-pointer"
                 onClick={() => handleSort("price")}
               >
                 Precio por unidad
               </TableHead>
-              <TableHead>Info</TableHead>
+              <TableHead>Descripción</TableHead>
               <TableHead>En sucursales</TableHead>
-              <TableHead>Acciónes</TableHead>
+              <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {currentItems.map((empaque) => (
-              <TableRow key={empaque.id}>
-                <TableCell>{empaque.nombre}</TableCell>
-                <TableCell>
-                  {empaque.stock.length > 0 ? (
-                    empaque.stock.map((s) => (
-                      <span key={s.id} className="font-bold ml-2">
-                        {s.cantidad}
+            {currentItems.map((empaque) => {
+              const cantidadTotal = empaque.stock.reduce(
+                (acc, s) => acc + (s.cantidad || 0),
+                0
+              );
+
+              return (
+                <TableRow key={empaque.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col">
+                      <span>{empaque.nombre}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {empaque.codigoProducto}
                       </span>
-                    ))
-                  ) : (
-                    <p className="text-gray-500">Sin stock</p>
-                  )}
-                </TableCell>
+                    </div>
+                  </TableCell>
 
-                <TableCell>
-                  {empaque.stock.map((stock) => {
-                    return (
-                      <div className="text-xs hover:text-blue-600 cursor-pointer">
-                        <Link to={`/stock-empaque-edicion/${stock.id}`}>
-                          <span>{formatearFecha(stock.fechaIngreso)}</span>
-                        </Link>
-                      </div>
-                    );
-                  })}
-                </TableCell>
-
-                <TableCell>
-                  {empaque.precioVenta != null
-                    ? new Intl.NumberFormat("es-GT", {
-                        style: "currency",
-                        currency: "GTQ",
-                      }).format(empaque.precioVenta)
-                    : "N/A"}
-                </TableCell>
-                <TableCell>
-                  <HoverCard>
-                    <HoverCardTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Eye size={16} />
-                      </Button>
-                    </HoverCardTrigger>
-                    <HoverCardContent className="w-80 p-4">
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {empaque.descripcion || "No hay descripción disponible"}
-                      </p>
-                    </HoverCardContent>
-                  </HoverCard>
-                </TableCell>
-
-                <TableCell>
-                  <HoverCard>
-                    <HoverCardTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <List size={16} />
-                      </Button>
-                    </HoverCardTrigger>
-                    <HoverCardContent className="w-80 p-4">
-                      <h4 className="text-sm font-semibold">
-                        Stocks en sucursales
-                      </h4>
-                      <div className="mt-2 space-y-2">
-                        {Object.values(
-                          empaque.stock.reduce((acc, stock) => {
-                            const sucursalNombre = stock?.sucursal?.nombre;
-
-                            if (!acc[sucursalNombre]) {
-                              acc[sucursalNombre] = {
-                                nombre: sucursalNombre,
-                                cantidad: 0,
-                              };
-                            }
-
-                            acc[sucursalNombre].cantidad += stock.cantidad;
-                            return acc;
-                          }, {} as Record<string, { nombre: string; cantidad: number }>)
-                        ).map((sucursal) => (
-                          <div
-                            key={sucursal?.nombre}
-                            className="flex justify-between border rounded px-3 py-1 shadow-sm bg-gray-100 dark:bg-transparent"
-                          >
-                            <p className="font-medium">{sucursal.nombre}</p>
-                            <p className="text-right">
-                              {sucursal?.cantidad} uds
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </HoverCardContent>
-                  </HoverCard>
-                </TableCell>
-
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => openEditDialog(empaque)}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="flex items-center justify-center py-4">
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <Button onClick={() => onPageChange(1)}>Primero</Button>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationPrevious
-                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </PaginationPrevious>
-            </PaginationItem>
-
-            {/* Sistema de truncado */}
-            {currentPage > 3 && (
-              <>
-                <PaginationItem>
-                  <PaginationLink onClick={() => onPageChange(1)}>
-                    1
-                  </PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <span className="text-muted-foreground">...</span>
-                </PaginationItem>
-              </>
-            )}
-
-            {Array.from({ length: totalPages }, (_, index) => {
-              const page = index + 1;
-              if (
-                page === currentPage ||
-                (page >= currentPage - 1 && page <= currentPage + 1)
-              ) {
-                return (
-                  <PaginationItem key={index}>
-                    <PaginationLink
-                      onClick={() => onPageChange(page)}
-                      isActive={page === currentPage}
+                  <TableCell>
+                    <Badge
+                      className="text-xs"
+                      variant={empaque.activo ? "default" : "secondary"}
                     >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              }
-              return null;
+                      {empaque.activo ? "Desactivado" : "Activo"}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell className="font-semibold">
+                    {cantidadTotal > 0 ? (
+                      cantidadTotal
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Sin stock
+                      </span>
+                    )}
+                  </TableCell>
+
+                  <TableCell>
+                    {empaque.stock.length > 0 ? (
+                      empaque.stock.map((stock) => (
+                        <div
+                          key={stock.id}
+                          className="text-xs hover:text-[#7b2c7d] cursor-pointer"
+                        >
+                          <Link to={`/stock-empaque-edicion/${stock.id}`}>
+                            {formatearFecha(stock.fechaIngreso)}
+                          </Link>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Sin movimientos
+                      </span>
+                    )}
+                  </TableCell>
+
+                  <TableCell>
+                    {empaque.precioVenta != null
+                      ? new Intl.NumberFormat("es-GT", {
+                          style: "currency",
+                          currency: "GTQ",
+                        }).format(empaque.precioVenta)
+                      : "N/A"}
+                  </TableCell>
+
+                  <TableCell>
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="border-[#e2b7b8]/80"
+                        >
+                          <Eye size={16} />
+                        </Button>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80 p-4">
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {empaque.descripcion ||
+                            "No hay descripción disponible"}
+                        </p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  </TableCell>
+
+                  <TableCell>
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="border-[#e2b7b8]/80"
+                        >
+                          <List size={16} />
+                        </Button>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80 p-4">
+                        <h4 className="text-sm font-semibold">
+                          Stocks en sucursales
+                        </h4>
+                        <div className="mt-2 space-y-2">
+                          {Object.values(
+                            empaque.stock.reduce((acc, stock) => {
+                              const sucursalNombre =
+                                stock?.sucursal?.nombre ?? "Sin nombre";
+
+                              if (!acc[sucursalNombre]) {
+                                acc[sucursalNombre] = {
+                                  nombre: sucursalNombre,
+                                  cantidad: 0,
+                                };
+                              }
+
+                              acc[sucursalNombre].cantidad += stock.cantidad;
+                              return acc;
+                            }, {} as Record<string, { nombre: string; cantidad: number }>)
+                          ).map((sucursal) => (
+                            <div
+                              key={sucursal.nombre}
+                              className="flex justify-between border rounded px-3 py-1 shadow-sm bg-[#fff5f7]/60 dark:bg-transparent text-xs"
+                            >
+                              <p className="font-medium">{sucursal.nombre}</p>
+                              <p className="text-right">
+                                {sucursal.cantidad} uds
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  </TableCell>
+
+                  <TableCell>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="border-[#e2b7b8]/80"
+                      onClick={() => openEditDialog(empaque)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
             })}
 
-            {currentPage < totalPages - 2 && (
-              <>
-                <PaginationItem>
-                  <span className="text-muted-foreground">...</span>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink onClick={() => onPageChange(totalPages)}>
-                    {totalPages}
-                  </PaginationLink>
-                </PaginationItem>
-              </>
+            {currentItems.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={8}
+                  className="text-center py-8 text-sm text-muted-foreground"
+                >
+                  No se encontraron empaques con ese criterio.
+                </TableCell>
+              </TableRow>
             )}
-
-            <PaginationItem>
-              <PaginationNext
-                onClick={() =>
-                  onPageChange(Math.min(totalPages, currentPage + 1))
-                }
-              >
-                <ChevronRight className="h-4 w-4" />
-              </PaginationNext>
-            </PaginationItem>
-            <PaginationItem>
-              <Button
-                variant={"destructive"}
-                onClick={() => onPageChange(totalPages)}
-              >
-                Último
-              </Button>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+          </TableBody>
+        </Table>
+        {isFetching && (
+          <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Actualizando inventario...
+          </div>
+        )}
       </div>
 
-      {/* DIALOG DE EDICION DE EMPQUE */}
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center py-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPageChange(1)}
+                >
+                  Primero
+                </Button>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </PaginationPrevious>
+              </PaginationItem>
+
+              {currentPage > 3 && (
+                <>
+                  <PaginationItem>
+                    <PaginationLink onClick={() => onPageChange(1)}>
+                      1
+                    </PaginationLink>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <span className="text-muted-foreground">...</span>
+                  </PaginationItem>
+                </>
+              )}
+
+              {Array.from({ length: totalPages }, (_, index) => {
+                const page = index + 1;
+                if (
+                  page === currentPage ||
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  return (
+                    <PaginationItem key={index}>
+                      <PaginationLink
+                        onClick={() => onPageChange(page)}
+                        isActive={page === currentPage}
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                }
+                return null;
+              })}
+
+              {currentPage < totalPages - 2 && (
+                <>
+                  <PaginationItem>
+                    <span className="text-muted-foreground">...</span>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationLink onClick={() => onPageChange(totalPages)}>
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                </>
+              )}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    onPageChange(Math.min(totalPages, currentPage + 1))
+                  }
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </PaginationNext>
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
+
+      {/* DIALOG EDICIÓN EMPAQUE */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -789,7 +945,7 @@ export default function InventarioEmpaques() {
                       }))
                     }
                     id="nombre"
-                    placeholder="Nombre del producto"
+                    placeholder="Nombre del empaque"
                   />
                 </div>
               </div>
@@ -807,7 +963,7 @@ export default function InventarioEmpaques() {
                       }))
                     }
                     id="codigoProducto"
-                    placeholder="Código del producto"
+                    placeholder="Código del empaque"
                   />
                 </div>
               </div>
@@ -831,7 +987,7 @@ export default function InventarioEmpaques() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="precioCosto" className="text-right">
-                  Precio Costo
+                  Precio costo
                 </Label>
                 <div className="col-span-3">
                   <Input
@@ -846,13 +1002,13 @@ export default function InventarioEmpaques() {
                       }))
                     }
                     id="precioCosto"
-                    placeholder="Precio de costo"
+                    placeholder="0.00"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="precioVenta" className="text-right">
-                  Precio Venta
+                  Precio venta
                 </Label>
                 <div className="col-span-3">
                   <Input
@@ -867,29 +1023,54 @@ export default function InventarioEmpaques() {
                       }))
                     }
                     id="precioVenta"
-                    placeholder="Precio de venta"
+                    placeholder="0.00"
                   />
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              {isAdminDeactivable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto border-[#e2b7b8] text-[#7b2c7d]"
+                  onClick={() => {
+                    setOpenToggleActive(true);
+                  }}
+                >
+                  <Power className="mr-2 h-4 w-4" />
+                  {selectedEmpaque?.activo ? "Reactivar" : "Desactivar"}
+                </Button>
+              )}
+
               <Button
+                type="button"
+                variant="destructive"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setOpenDelete(true);
-                  setEditDialogOpen(false);
                 }}
-                type="button"
               >
+                <X className="mr-2 h-4 w-4" />
                 Eliminar
               </Button>
 
-              <Button type="submit">Guardar cambios</Button>
+              <Button
+                type="submit"
+                className="w-full sm:w-auto bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+                disabled={updateEmpaqueMutation.isPending}
+              >
+                {updateEmpaqueMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Guardar cambios
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* MARCAR COMO ELIMINADO */}
+      {/* DIALOG: MARCAR COMO ELIMINADO */}
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center space-y-4">
@@ -912,13 +1093,13 @@ export default function InventarioEmpaques() {
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-center sm:space-x-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-center">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpenDelete(false)}
-              disabled={isDeleting}
-              className="w-full sm:w-auto order-2 sm:order-1"
+              disabled={markDeletedEmpaqueMutation.isPending}
+              className="w-full sm:w-auto"
             >
               Cancelar
             </Button>
@@ -926,10 +1107,10 @@ export default function InventarioEmpaques() {
               type="button"
               variant="destructive"
               onClick={handleMarkDeletedEmpaque}
-              disabled={isDeleting}
-              className="w-full sm:w-auto order-1 sm:order-2"
+              disabled={markDeletedEmpaqueMutation.isPending}
+              className="w-full sm:w-auto"
             >
-              {isDeleting ? (
+              {markDeletedEmpaqueMutation.isPending ? (
                 <>
                   <Loader2 className="animate-spin mr-2 h-4 w-4" />
                   Eliminando...
@@ -939,6 +1120,74 @@ export default function InventarioEmpaques() {
                   <X className="mr-2 h-4 w-4" />
                   Eliminar
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: DESACTIVAR / REACTIVAR */}
+      <Dialog open={openToggleActive} onOpenChange={setOpenToggleActive}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/20">
+              <Power className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-center">
+              {selectedEmpaque?.activo
+                ? "Reactivar empaque"
+                : "Desactivar empaque"}
+            </DialogTitle>
+            <DialogDescription className="text-base leading-relaxed text-center">
+              {selectedEmpaque?.activo ? (
+                <>
+                  El empaque{" "}
+                  <span className="font-semibold text-foreground">
+                    "{selectedEmpaque?.nombre}"
+                  </span>{" "}
+                  será marcado como{" "}
+                  <span className="font-semibold">activo</span> y volverá a
+                  estar disponible para ventas.
+                </>
+              ) : (
+                <>
+                  El empaque{" "}
+                  <span className="font-semibold text-foreground">
+                    "{selectedEmpaque?.nombre}"
+                  </span>{" "}
+                  será marcado como{" "}
+                  <span className="font-semibold">inactivo</span> y ya no podrás
+                  usarlo en nuevas ventas.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenToggleActive(false)}
+              disabled={toggleActivoEmpaqueMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="w-full sm:w-auto bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white"
+              onClick={handleToggleActivoEmpaque}
+              disabled={toggleActivoEmpaqueMutation.isPending}
+            >
+              {toggleActivoEmpaqueMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : selectedEmpaque?.activo ? (
+                "Reactivar"
+              ) : (
+                "Desctivar"
               )}
             </Button>
           </DialogFooter>
