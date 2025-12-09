@@ -14,6 +14,14 @@ export type Stock = {
 export type Precios = {
   id: number;
   precio: number;
+  // Propiedades de Control/Metadata
+  creadoPorId: number;
+  estado: "APROBADO" | "PENDIENTE" | "RECHAZADO" | string; // Usamos uniones literales si conoces los estados
+  fechaCreacion: string; // Se recomienda usar 'string' para fechas ISO-8601 en interfaces
+  orden: number;
+  productoId: number;
+  tipo: "ESTANDAR" | "ESPECIAL" | string; // Usamos uniones literales si conoces los tipos
+  usado: boolean;
 };
 
 export interface Empaque {

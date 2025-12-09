@@ -95,6 +95,7 @@ type Stock = {
 type Precios = {
   id: number;
   precio: number;
+  orden: number;
 };
 
 type Producto = {
@@ -126,6 +127,24 @@ interface CustomerOption {
   value: number;
   label: string;
 }
+// Devuelve el precio "base": primero por orden, luego por valor
+const getBasePrice = (precios: Precios[] = []) => {
+  if (!precios || precios.length === 0) {
+    return { id: 0, precio: 0, sorted: [] as Precios[] };
+  }
+
+  const sorted = [...precios].sort((a, b) => {
+    // Si ambos tienen orden, usamos orden
+    if (a.orden != null && b.orden != null && a.orden !== b.orden) {
+      return a.orden - b.orden;
+    }
+    // Fallback por precio más bajo
+    return a.precio - b.precio;
+  });
+
+  const best = sorted[0];
+  return { id: best.id, precio: best.precio, sorted };
+};
 
 export default function PuntoVenta() {
   const userId = useStore((state) => state.userId) ?? 0;
@@ -205,6 +224,13 @@ export default function PuntoVenta() {
   const addToCart = (product: Producto) => {
     const existingItem = cart.find((item) => item.id === product.id);
 
+    // Ordenamos precios y escogemos el base
+    const {
+      id: basePriceId,
+      precio: basePrice,
+      sorted,
+    } = getBasePrice(product.precios);
+
     if (existingItem) {
       setCart(
         cart.map((item) =>
@@ -214,17 +240,15 @@ export default function PuntoVenta() {
         )
       );
     } else {
-      const initialPriceId = product.precios[0]?.id;
-      const initialPrice = product.precios[0]?.precio || 0;
-
       const newCartItem: CartItem = {
         ...product,
+        precios: sorted, // dejamos los precios ya ordenados
         quantity: 1,
-        selectedPriceId: initialPriceId,
-        selectedPrice: initialPrice,
+        selectedPriceId: basePriceId,
+        selectedPrice: basePrice,
       };
 
-      setCart([...cart, newCartItem]);
+      setCart((prev) => [...prev, newCartItem]);
     }
   };
 
@@ -441,6 +465,8 @@ export default function PuntoVenta() {
   // =======================
   // RENDER
   // =======================
+  console.log("los productos son: ", productos);
+
   return (
     <div className="container">
       {/* Dialog venta registrada */}
@@ -564,6 +590,7 @@ export default function PuntoVenta() {
                       <TableCell>
                         <p style={{ fontSize: "13px" }}>
                           {product.precios
+                            .sort((a, b) => a.orden - b.orden)
                             .map((precio) =>
                               new Intl.NumberFormat("es-GT", {
                                 style: "currency",
@@ -600,14 +627,7 @@ export default function PuntoVenta() {
                                 "disabled:bg-[#e2b7b8]/50 disabled:text-[#7b2c7d]/50 disabled:hover:bg-[#e2b7b8]/50",
                                 "dark:disabled:bg-[#7b2c7d]/50 dark:disabled:text-[#f5d0d1]/50 dark:disabled:hover:bg-[#7b2c7d]/50"
                               )}
-                              onClick={() =>
-                                addToCart({
-                                  ...product,
-                                  selectedPrice:
-                                    product.precios[0]?.precio || 0,
-                                  quantity: 1,
-                                } as CartItem)
-                              }
+                              onClick={() => addToCart(product)} // 👈 aquí el cambio
                               disabled={
                                 product.stock.reduce(
                                   (total, stocks) => total + stocks.cantidad,
