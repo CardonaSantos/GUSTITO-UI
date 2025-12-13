@@ -51,9 +51,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import React from "react";
 import { useStore } from "@/components/Context/ContextSucursal";
-
 import SelectM from "react-select";
 import { Link } from "react-router-dom";
 
@@ -64,7 +62,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
-// 🔑 NUEVOS HOOKS
+// 🔑 Hooks
 import {
   useGetEmpaques,
   useGetClientes,
@@ -84,8 +82,9 @@ function formatearFechaUTC(fecha: string) {
   return dayjs(fecha).format("DD/MM/YYYY hh:mm A");
 }
 
-// ========================================>
-// Tipos locales para el componente
+// =======================
+// Tipos
+// =======================
 type Stock = {
   id: number;
   cantidad: number;
@@ -96,7 +95,7 @@ type Stock = {
 type Precios = {
   id: number;
   precio: number;
-  orden: number;
+  orden?: number | null;
 };
 
 type Producto = {
@@ -114,7 +113,6 @@ type Producto = {
 interface CartItem extends Producto {
   quantity: number;
   selectedPriceId: number;
-  selectedPrice: number;
 }
 
 interface Customer {
@@ -128,23 +126,31 @@ interface CustomerOption {
   value: number;
   label: string;
 }
-// Devuelve el precio "base": primero por orden, luego por valor
-const getBasePrice = (precios: Precios[] = []) => {
-  if (!precios || precios.length === 0) {
-    return { id: 0, precio: 0, sorted: [] as Precios[] };
-  }
 
+// =======================
+// Helpers de precio
+// =======================
+const sortPrecios = (precios: Precios[] = []) => {
   const sorted = [...precios].sort((a, b) => {
-    // Si ambos tienen orden, usamos orden
-    if (a.orden != null && b.orden != null && a.orden !== b.orden) {
-      return a.orden - b.orden;
-    }
-    // Fallback por precio más bajo
+    // null/undefined => al final
+    const ao = a.orden ?? Number.POSITIVE_INFINITY;
+    const bo = b.orden ?? Number.POSITIVE_INFINITY;
+    if (ao !== bo) return ao - bo;
     return a.precio - b.precio;
   });
+  return sorted;
+};
 
+const getBasePrice = (precios: Precios[] = []) => {
+  if (!precios.length) return { id: 0, precio: 0, sorted: [] as Precios[] };
+  const sorted = sortPrecios(precios);
   const best = sorted[0];
   return { id: best.id, precio: best.precio, sorted };
+};
+
+const clampInt = (value: number, min: number, max: number) => {
+  if (Number.isNaN(value)) return min;
+  return Math.max(min, Math.min(max, value));
 };
 
 export default function PuntoVenta() {
@@ -153,28 +159,15 @@ export default function PuntoVenta() {
   const sucursalId = rawSucursalId ?? 0;
 
   // =======================
-  // NUEVOS HOOKS DE DATA
+  // DATA
   // =======================
-  const {
-    data: productos = [],
-    // isLoading: isLoadingProductos,
-    // isFetching: isFetchingProductos,
-  } = useGetProductosBySucursal(rawSucursalId);
-
-  const {
-    data: empaques = [],
-    // isLoading: isLoadingEmpaques
-  } = useGetEmpaques();
-
-  const {
-    data: clients = [],
-    // isLoading: isLoadingClientes
-  } = useGetClientes();
+  const { data: productos = [] } = useGetProductosBySucursal(rawSucursalId);
+  const { data: empaques = [] } = useGetEmpaques();
+  const { data: clients = [] } = useGetClientes();
 
   // MUTATIONS
   const { mutateAsync: createVenta, isPending: isCreatingVenta } =
     useCreateVenta();
-
   const { mutateAsync: createPriceRequest, isPending: isCreatingPriceRequest } =
     useCreatePriceRequest();
 
@@ -182,20 +175,19 @@ export default function PuntoVenta() {
   // ESTADO LOCAL
   // =======================
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [paymentMethod, setPaymentMethod] = useState<string>("CONTADO");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("CONTADO");
 
   const [openSection, setOpenSection] = useState(false);
-  const [ventaResponse, setventaResponse] = useState<Venta | null>(null);
+  const [ventaResponse, setVentaResponse] = useState<Venta | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [openEmpaques, setOpenEmpaques] = useState(false);
 
-  const [nombre, setNombre] = useState<string>("");
-  const [dpi, setDpi] = useState<string>("");
-  const [imei, setImei] = useState<string>("");
-
-  const [telefono, setTelefono] = useState<string>("");
-  const [direccion, setDireccion] = useState<string>("");
+  const [nombre, setNombre] = useState("");
+  const [dpi, setDpi] = useState("");
+  const [imei, setImei] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [direccion, setDireccion] = useState("");
 
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
     null
@@ -212,103 +204,107 @@ export default function PuntoVenta() {
   const [empaquesUsados, setEmpaquesUsados] = useState<
     { id: number; quantity: number }[]
   >([]);
+  const [filterEmpaques, setFilterEmpaques] = useState("");
 
-  const [filterEmpaques, setFilterEmpaques] = useState<string>("");
-
-  const handleClose = () => {
-    setOpenSection(false);
-  };
+  const handleClose = () => setOpenSection(false);
 
   // =======================
-  // LÓGICA CARRITO
+  // FORMATO
   // =======================
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("es-GT", {
+      style: "currency",
+      currency: "GTQ",
+    }).format(amount);
+
+  // =======================
+  // CARRITO (precio por ID: fuente única de verdad)
+  // =======================
+  const getSelectedPriceValue = (item: CartItem) =>
+    item.precios.find((p) => p.id === item.selectedPriceId)?.precio ?? 0;
+
+  const getMaxStock = (product: Producto) =>
+    product.stock?.reduce((total, s) => total + (s.cantidad ?? 0), 0) ?? 0;
+
   const addToCart = (product: Producto) => {
-    const existingItem = cart.find((item) => item.id === product.id);
+    const existing = cart.find((item) => item.id === product.id);
+    const { id: basePriceId, sorted } = getBasePrice(product.precios);
 
-    // Ordenamos precios y escogemos el base
-    const {
-      id: basePriceId,
-      precio: basePrice,
-      sorted,
-    } = getBasePrice(product.precios);
-
-    if (existingItem) {
-      setCart(
-        cart.map((item) =>
+    if (existing) {
+      setCart((prev) =>
+        prev.map((item) =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         )
       );
-    } else {
-      const newCartItem: CartItem = {
-        ...product,
-        precios: sorted, // dejamos los precios ya ordenados
-        quantity: 1,
-        selectedPriceId: basePriceId,
-        selectedPrice: basePrice,
-      };
-
-      setCart((prev) => [...prev, newCartItem]);
+      return;
     }
+
+    const newItem: CartItem = {
+      ...product,
+      precios: sorted, // ordenados una vez y se quedan estables
+      quantity: 1,
+      selectedPriceId: basePriceId,
+    };
+
+    setCart((prev) => [...prev, newItem]);
   };
 
   const removeFromCart = (productId: number) => {
-    setCart(cart.filter((item) => item.id !== productId));
+    setCart((prev) => prev.filter((item) => item.id !== productId));
   };
 
-  const updateQuantity = (productId: number, newQuantity: number) => {
-    setCart(
-      cart.map((item) =>
-        item.id === productId ? { ...item, quantity: newQuantity } : item
+  const updateQuantity = (productId: number, newQuantityRaw: number) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.id !== productId) return item;
+        const max = getMaxStock(item);
+        const newQuantity = clampInt(newQuantityRaw, 1, Math.max(1, max));
+        return { ...item, quantity: newQuantity };
+      })
+    );
+  };
+
+  const updateSelectedPriceId = (productId: number, newPriceId: number) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === productId ? { ...item, selectedPriceId: newPriceId } : item
       )
     );
   };
 
-  const calculateTotal = (): number => {
-    return cart.reduce(
-      (total, item) => total + item.selectedPrice * item.quantity,
+  const calculateTotal = () =>
+    cart.reduce(
+      (total, item) => total + getSelectedPriceValue(item) * item.quantity,
       0
     );
-  };
 
-  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
-  };
+  // =======================
+  // BUSQUEDA
+  // =======================
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return productos;
 
-  const filteredProducts = productos.filter(
-    (product) =>
-      product.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.codigoProducto.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const updatePrice = (productId: number, newPrice: number) => {
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              selectedPrice: newPrice,
-              selectedPriceId:
-                item.precios.find((price) => price.precio === newPrice)?.id ||
-                item.selectedPriceId,
-            }
-          : item
-      )
+    return productos.filter(
+      (p) =>
+        p.nombre.toLowerCase().includes(term) ||
+        p.codigoProducto.toLowerCase().includes(term)
     );
-  };
+  }, [productos, searchTerm]);
 
   // =======================
   // PRICE REQUEST
   // =======================
   const handleMakeRequest = async () => {
-    if (precioReques && precioReques <= 0) {
-      toast.info("La cantidad a solicitar no debe ser negativa");
+    if (!selectedProductId) {
+      toast.info("Debe seleccionar un producto primero");
       return;
     }
 
-    if (!selectedProductId) {
-      toast.info("Debe seleccionar un producto primero");
+    if (precioReques == null || precioReques <= 0) {
+      toast.info("El precio solicitado debe ser mayor a 0");
       return;
     }
 
@@ -323,7 +319,7 @@ export default function PuntoVenta() {
         "Solicitud enviada, esperando respuesta del administrador..."
       );
       setPrecioRequest(null);
-      setSelectedProductId("");
+      setSelectedProductId(null);
       setOpenRequest(false);
     } catch (error) {
       console.log(error);
@@ -334,72 +330,65 @@ export default function PuntoVenta() {
   // =======================
   // CLIENTES (react-select)
   // =======================
+  const customerOptions = useMemo(
+    () =>
+      clients.map((customer) => ({
+        value: customer.id,
+        label: `${customer.nombre} ${
+          customer.telefono ? `(${customer.telefono})` : ""
+        } ${customer.dpi ? `DPI: ${customer.dpi}` : ""} ${
+          (customer as any).iPInternet
+            ? `IP: ${(customer as any).iPInternet}`
+            : ""
+        }`,
+      })),
+    [clients]
+  );
+
   const handleChange = (selectedOption: CustomerOption | null) => {
     const selectedCustomer = selectedOption
-      ? clients.find((customer) => customer.id === selectedOption.value) || null
+      ? clients.find((c) => c.id === selectedOption.value) || null
       : null;
     setSelectedCustomerID(selectedCustomer);
   };
 
-  const customerOptions = clients.map((customer) => ({
-    value: customer.id,
-    label: `${customer.nombre} ${
-      customer.telefono ? `(${customer.telefono})` : ""
-    } ${customer.dpi ? `DPI: ${customer.dpi}` : ""} ${
-      (customer as any).iPInternet ? `IP: ${(customer as any).iPInternet}` : ""
-    }`,
-  }));
-
   // =======================
-  // FORMATO
+  // EMPAQUES
   // =======================
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-GT", {
-      style: "currency",
-      currency: "GTQ",
-    }).format(amount);
-  };
-
   const updateEmpaqueQuantity = (id: number, quantity: number) => {
     setEmpaquesUsados((prev) => {
       const exists = prev.find((e) => e.id === id);
-      if (exists) {
+      if (exists)
         return prev.map((e) => (e.id === id ? { ...e, quantity } : e));
-      }
       return [...prev, { id, quantity }];
     });
   };
 
   const removeEmpaque = (packId: number) => {
-    const filterWithOutPack = empaquesUsados.filter(
-      (pack) => pack.id !== packId
-    );
-    setEmpaquesUsados(filterWithOutPack);
+    setEmpaquesUsados((prev) => prev.filter((p) => p.id !== packId));
   };
 
-  const totalEmpuesSeleccionados = empaquesUsados.reduce(
+  const totalEmpaquesSeleccionados = empaquesUsados.reduce(
     (total, acc) => total + acc.quantity,
     0
   );
-
   const totalProductos = cart.reduce((total, acc) => total + acc.quantity, 0);
 
   const filteredEmpaques = useMemo(() => {
-    const estandarFilter = filterEmpaques.toLocaleLowerCase().trim();
-    const matchesFiltered = empaques.filter(
-      (pack) =>
-        pack.nombre.trim().toLowerCase().includes(estandarFilter) ||
-        pack.codigoProducto.trim().toLowerCase().includes(estandarFilter)
-    );
+    const term = filterEmpaques.toLowerCase().trim();
+    if (!term) return empaques;
 
-    return matchesFiltered;
+    return empaques.filter(
+      (p) =>
+        p.nombre.trim().toLowerCase().includes(term) ||
+        p.codigoProducto.trim().toLowerCase().includes(term)
+    );
   }, [filterEmpaques, empaques]);
 
   // =======================
-  // COMPLETAR VENTA (mutation)
+  // COMPLETAR VENTA
   // =======================
   const handleCompleteSale = async () => {
-    // 1) Validaciones básicas de usuario/sucursal
     if (!userId || !rawSucursalId) {
       toast.error(
         "No se puede registrar la venta: sucursal o usuario no válidos."
@@ -407,8 +396,11 @@ export default function PuntoVenta() {
       return;
     }
 
-    // 2) Definir método de pago con fallback a CONTADO
-    // Asegúrate que estos strings coinciden EXACTO con tu enum MetodoPago del backend
+    if (!cart.length) {
+      toast.warning("Agrega productos al carrito primero.");
+      return;
+    }
+
     const metodoPago = (paymentMethod || "CONTADO") as
       | "CONTADO"
       | "TARJETA"
@@ -422,17 +414,14 @@ export default function PuntoVenta() {
       productos: cart.map((prod) => ({
         productoId: prod.id,
         cantidad: prod.quantity,
-        selectedPriceId: prod.selectedPriceId,
+        selectedPriceId: prod.selectedPriceId, // ✅ ID real, sin “adivinar”
       })),
+      monto: calculateTotal(),
       empaques: empaquesUsados.map((pack) => ({
         id: pack.id,
         quantity: pack.quantity,
       })),
       metodoPago,
-      monto: cart.reduce(
-        (acc, prod) => acc + prod.selectedPrice * prod.quantity,
-        0
-      ),
       nombre: nombre.trim(),
       telefono: telefono.trim(),
       direccion: direccion.trim(),
@@ -443,7 +432,6 @@ export default function PuntoVenta() {
     const isCustomerInfoProvided =
       !!saleData.nombre && !!saleData.telefono && !!saleData.direccion;
 
-    // 3) Regla de cliente para ventas grandes
     if (
       saleData.monto > 1000 &&
       !saleData.clienteId &&
@@ -456,16 +444,13 @@ export default function PuntoVenta() {
     }
 
     try {
-      // 4) Ejecutar la venta con toast.promise
       const ventaCreada = await toast.promise(createVenta(saleData), {
         loading: "Registrando venta...",
         success: (data) => {
-          // data es la venta creada que devuelve el backend
-          // Aquí aplicamos todos los efectos colaterales en UI
           setIsDialogOpen(false);
           setCart([]);
           setImei("");
-          setventaResponse(data);
+          setVentaResponse(data);
           setSelectedCustomerID(null);
           setNombre("");
           setTelefono("");
@@ -474,21 +459,15 @@ export default function PuntoVenta() {
           setEmpaquesUsados([]);
           setOpenEmpaques(false);
 
-          setTimeout(() => {
-            setOpenSection(true);
-          }, 1000);
-
+          setTimeout(() => setOpenSection(true), 1000);
           return "Venta completada con éxito";
         },
         error: (error) => getApiErrorMessageAxios(error),
       });
 
-      // Si quieres usar ventaCreada después, aquí también la tienes:
       console.log("Venta creada:", ventaCreada);
     } catch (error) {
       console.log(error);
-      // El mensaje principal ya lo muestra toast.promise vía getApiErrorMessageAxios,
-      // esto es solo un fallback genérico.
       toast.error("Ocurrió un error al completar la venta");
     }
   };
@@ -496,8 +475,6 @@ export default function PuntoVenta() {
   // =======================
   // RENDER
   // =======================
-  console.log("los productos son: ", productos);
-
   return (
     <div className="container">
       {/* Dialog venta registrada */}
@@ -543,10 +520,7 @@ export default function PuntoVenta() {
                   Monto Total:
                 </div>
                 <div className="font-semibold text-[#7b2c7d] dark:text-[#e2b7b8]">
-                  {new Intl.NumberFormat("es-GT", {
-                    style: "currency",
-                    currency: "GTQ",
-                  }).format(ventaResponse.totalVenta)}
+                  {formatCurrency(ventaResponse.totalVenta)}
                 </div>
               </div>
             </div>
@@ -583,14 +557,14 @@ export default function PuntoVenta() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {/* LISTA PRODUCTOS */}
         <div className="space-y-1">
-          <Card className="shadow-xl ">
+          <Card className="shadow-xl">
             <CardContent className="p-2">
               <div className="flex space-x-2">
                 <Input
                   type="text"
                   placeholder="Buscar por nombre o código..."
                   value={searchTerm}
-                  onChange={handleSearch}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="text-sm py-1"
                 />
                 <Button variant="outline" size="icon" className="h-10 w-10">
@@ -612,71 +586,51 @@ export default function PuntoVenta() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell>
-                        <p style={{ fontSize: "12px" }}>{product.nombre}</p>
-                      </TableCell>
+                  {filteredProducts.map((product) => {
+                    const maxStock = getMaxStock(product);
+                    const preciosSorted = sortPrecios(product.precios);
 
-                      <TableCell>
-                        <p style={{ fontSize: "13px" }}>
-                          {product.precios
-                            .sort((a, b) => a.orden - b.orden)
-                            .map((precio) =>
-                              new Intl.NumberFormat("es-GT", {
-                                style: "currency",
-                                currency: "GTQ",
-                              }).format(Number(precio.precio))
-                            )
-                            .join(", ")}
-                        </p>
-                      </TableCell>
-
-                      {product.stock && product.stock.length > 0 ? (
-                        <>
-                          <TableCell>
-                            {product.stock.some(
-                              (stock) => stock.cantidad > 0
-                            ) ? (
-                              <p className="font-bold">
-                                {product.stock.reduce(
-                                  (total, stocks) => total + stocks.cantidad,
-                                  0
-                                )}
-                              </p>
-                            ) : (
-                              "Sin stock"
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            <Button
-                              className={cn(
-                                "transition-all duration-300",
-                                "bg-[#e2b7b8] hover:bg-[#d19fa0] text-[#7b2c7d]",
-                                "dark:bg-[#7b2c7d] dark:hover:bg-[#9a3c9c] dark:text-[#f5d0d1]",
-                                "disabled:bg-[#e2b7b8]/50 disabled:text-[#7b2c7d]/50 disabled:hover:bg-[#e2b7b8]/50",
-                                "dark:disabled:bg-[#7b2c7d]/50 dark:disabled:text-[#f5d0d1]/50 dark:disabled:hover:bg-[#7b2c7d]/50"
-                              )}
-                              onClick={() => addToCart(product)} // 👈 aquí el cambio
-                              disabled={
-                                product.stock.reduce(
-                                  (total, stocks) => total + stocks.cantidad,
-                                  0
-                                ) === 0
-                              }
-                            >
-                              <CirclePlus />
-                            </Button>
-                          </TableCell>
-                        </>
-                      ) : (
-                        <TableCell colSpan={3} className="text-center">
-                          Sin stock disponible
+                    return (
+                      <TableRow key={product.id}>
+                        <TableCell>
+                          <p style={{ fontSize: "12px" }}>{product.nombre}</p>
                         </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
+
+                        <TableCell>
+                          <p style={{ fontSize: "13px" }}>
+                            {preciosSorted
+                              .filter((p) => p.precio > 0)
+                              .map((p) => formatCurrency(Number(p.precio)))
+                              .join(", ")}
+                          </p>
+                        </TableCell>
+
+                        <TableCell>
+                          {maxStock > 0 ? (
+                            <p className="font-bold">{maxStock}</p>
+                          ) : (
+                            "Sin stock"
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <Button
+                            className={cn(
+                              "transition-all duration-300",
+                              "bg-[#e2b7b8] hover:bg-[#d19fa0] text-[#7b2c7d]",
+                              "dark:bg-[#7b2c7d] dark:hover:bg-[#9a3c9c] dark:text-[#f5d0d1]",
+                              "disabled:bg-[#e2b7b8]/50 disabled:text-[#7b2c7d]/50 disabled:hover:bg-[#e2b7b8]/50",
+                              "dark:disabled:bg-[#7b2c7d]/50 dark:disabled:text-[#f5d0d1]/50 dark:disabled:hover:bg-[#7b2c7d]/50"
+                            )}
+                            onClick={() => addToCart(product)}
+                            disabled={maxStock === 0}
+                          >
+                            <CirclePlus />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -684,7 +638,7 @@ export default function PuntoVenta() {
         </div>
 
         {/* CARRITO + CLIENTE */}
-        <div className="space-y-2 ">
+        <div className="space-y-2">
           {/* CARRITO */}
           <Card className="flex flex-col h-80 shadow-md">
             <div className="p-3 border-b flex items-center justify-between">
@@ -692,7 +646,7 @@ export default function PuntoVenta() {
                 <ShoppingBag className="h-4 w-4 dark:text-white" />
                 Carrito
                 <span className="text-xs bg-primary/10 px-2 py-0.5 rounded-full dark:text-white">
-                  {cart.reduce((acc, total) => acc + total.quantity, 0)} items
+                  {cart.reduce((acc, item) => acc + item.quantity, 0)} items
                 </span>
               </h3>
             </div>
@@ -715,82 +669,87 @@ export default function PuntoVenta() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {cart.map((item) => (
-                      <TableRow key={item.id} className="hover:bg-muted/5">
-                        <TableCell className="py-1.5 font-medium truncate max-w-[120px]">
-                          {item.nombre}
-                        </TableCell>
-                        <TableCell className="py-1.5">
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateQuantity(
-                                item.id,
-                                Number.parseInt(e.target.value)
-                              )
-                            }
-                            min="1"
-                            max={item.stock.reduce(
-                              (total, stock) => total + stock.cantidad,
-                              0
-                            )}
-                            className="h-7 w-16 text-xs px-2"
-                          />
-                        </TableCell>
-                        <TableCell className="py-1.5">
-                          <Select
-                            value={item.selectedPriceId.toString()}
-                            onValueChange={(newPriceId) => {
-                              const selectedPrice = item.precios.find(
-                                (price) =>
-                                  price.id === Number.parseInt(newPriceId)
-                              );
-                              if (selectedPrice) {
-                                updatePrice(item.id, selectedPrice.precio);
+                    {cart.map((item) => {
+                      const selectedPriceValue = getSelectedPriceValue(item);
+                      const max = getMaxStock(item);
+
+                      return (
+                        <TableRow key={item.id} className="hover:bg-muted/5">
+                          <TableCell className="py-1.5 font-medium truncate max-w-[120px]">
+                            {item.nombre}
+                          </TableCell>
+
+                          <TableCell className="py-1.5">
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updateQuantity(
+                                  item.id,
+                                  Number.parseInt(e.target.value)
+                                )
                               }
-                            }}
-                          >
-                            <SelectTrigger className="h-7 text-xs">
-                              <SelectValue
-                                placeholder={formatCurrency(item.selectedPrice)}
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectLabel className="text-xs">
-                                  Precios disponibles
-                                </SelectLabel>
-                                {item.precios
-                                  .filter((prec) => prec.precio > 0)
-                                  .map((precio) => (
-                                    <SelectItem
-                                      key={precio.id}
-                                      value={precio.id.toString()}
-                                      className="text-xs"
-                                    >
-                                      {formatCurrency(precio.precio)}
-                                    </SelectItem>
-                                  ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="py-1.5 font-semibold text-xs">
-                          {formatCurrency(item.selectedPrice * item.quantity)}
-                        </TableCell>
-                        <TableCell className="py-1.5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeFromCart(item.id)}
-                            className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                              min={1}
+                              max={Math.max(1, max)}
+                              className="h-7 w-16 text-xs px-2"
+                            />
+                          </TableCell>
+
+                          <TableCell className="py-1.5">
+                            <Select
+                              value={item.selectedPriceId.toString()}
+                              onValueChange={(newPriceId) =>
+                                updateSelectedPriceId(
+                                  item.id,
+                                  Number(newPriceId)
+                                )
+                              }
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue
+                                  placeholder={formatCurrency(
+                                    selectedPriceValue
+                                  )}
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  <SelectLabel className="text-xs">
+                                    Precios disponibles
+                                  </SelectLabel>
+                                  {item.precios
+                                    .filter((p) => p.precio > 0)
+                                    .map((p) => (
+                                      <SelectItem
+                                        key={p.id}
+                                        value={p.id.toString()}
+                                        className="text-xs"
+                                      >
+                                        {formatCurrency(p.precio)}
+                                      </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+
+                          <TableCell className="py-1.5 font-semibold text-xs">
+                            {formatCurrency(selectedPriceValue * item.quantity)}
+                          </TableCell>
+
+                          <TableCell className="py-1.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeFromCart(item.id)}
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -804,11 +763,10 @@ export default function PuntoVenta() {
                   </span>
                 </div>
               </div>
+
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <Button
-                  onClick={() => {
-                    setOpenEmpaques(true);
-                  }}
+                  onClick={() => setOpenEmpaques(true)}
                   disabled={cart.length <= 0}
                   className="w-full mt-1 bg-gradient-to-r from-[#7b2c7d] to-[#9a3c9c] hover:from-[#8d3390] hover:to-[#ac4cae] text-white shadow-md hover:shadow-lg dark:from-[#e2b7b8] dark:to-[#d19fa0] dark:text-[#7b2c7d]"
                   size="sm"
@@ -842,7 +800,7 @@ export default function PuntoVenta() {
                       <div className="flex justify-between text-xs text-[#7b2c7d] dark:text-[#e2b7b8]">
                         <span>Total de empaques:</span>
                         <span className="font-bold">
-                          {totalEmpuesSeleccionados}
+                          {totalEmpaquesSeleccionados}
                         </span>
                       </div>
                     </div>
@@ -896,9 +854,7 @@ export default function PuntoVenta() {
                             className="w-full h-6 pl-8 text-sm"
                             placeholder="Buscar"
                             value={filterEmpaques}
-                            onChange={(
-                              e: React.ChangeEvent<HTMLInputElement>
-                            ) => setFilterEmpaques(e.target.value)}
+                            onChange={(e) => setFilterEmpaques(e.target.value)}
                           />
                           <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground">
                             <Search className="h-4 w-4" />
@@ -909,29 +865,31 @@ export default function PuntoVenta() {
                       <div className="space-y-2 h-[30vh] md:h-[50vh] overflow-y-auto pr-1 border rounded-md p-2 pb-4">
                         {filteredEmpaques.map((empaque) => {
                           const stockPorSucursal = empaque.stock.reduce(
-                            (acc, curr) => {
+                            (
+                              acc: Record<
+                                number,
+                                { nombre: string; total: number }
+                              >,
+                              curr: any
+                            ) => {
                               const id = curr.sucursal.id;
                               const nombre = curr.sucursal.nombre;
                               const cantidad = curr.cantidad ?? 0;
-
-                              if (!acc[id]) {
+                              if (!acc[id])
                                 acc[id] = { nombre, total: cantidad };
-                              } else {
-                                acc[id].total += cantidad;
-                              }
-
+                              else acc[id].total += cantidad;
                               return acc;
                             },
-                            {} as Record<
-                              number,
-                              { nombre: string; total: number }
-                            >
+                            {}
                           );
 
                           const maxPackage = empaque.stock
-                            .filter((pack) => pack.sucursal.id === sucursalId)
+                            .filter(
+                              (pack: any) => pack.sucursal.id === sucursalId
+                            )
                             .reduce(
-                              (total, acc) => total + (acc.cantidad ?? 0),
+                              (total: number, acc: any) =>
+                                total + (acc.cantidad ?? 0),
                               0
                             );
 
@@ -950,17 +908,18 @@ export default function PuntoVenta() {
                                 <div className="text-xs text-muted-foreground py-1 flex flex-wrap gap-1">
                                   Stock:
                                   {Object.values(stockPorSucursal).map(
-                                    (sucursal, index) => (
+                                    (s, index) => (
                                       <p
                                         key={index}
                                         className="bg-muted px-2 py-0.5 rounded-full ml-2"
                                       >
-                                        {sucursal.nombre}: {sucursal.total}
+                                        {s.nombre}: {s.total}
                                       </p>
                                     )
                                   )}
                                 </div>
                               </div>
+
                               {maxPackage <= 0 ? (
                                 <span className="font-semibold text-xs text-red-500 whitespace-nowrap">
                                   Sin stock disponible
@@ -987,42 +946,41 @@ export default function PuntoVenta() {
 
                     <div className="p-4 md:w-1/2 w-full">
                       <h4 className="text-sm font-medium text-[#7b2c7d] dark:text-[#e2b7b8] mb-2">
-                        Empaques seleccionados {totalEmpuesSeleccionados}
+                        Empaques seleccionados {totalEmpaquesSeleccionados}
                       </h4>
+
                       <div className="border rounded-md p-2 h-[30vh] md:h-[60vh] overflow-y-auto pb-4">
-                        {empaquesUsados && empaquesUsados.length > 0 ? (
+                        {empaquesUsados.length > 0 ? (
                           <div className="space-y-1">
-                            {empaquesUsados &&
-                              empaquesUsados
-                                .filter((pack) => pack.quantity > 0)
-                                .map((pack, index) => {
-                                  const empaque = empaques.find(
-                                    (e) => e.id === pack.id
-                                  );
+                            {empaquesUsados
+                              .filter((pack) => pack.quantity > 0)
+                              .map((pack, index) => {
+                                const empaque = empaques.find(
+                                  (e: any) => e.id === pack.id
+                                );
+                                return (
+                                  <div
+                                    key={index}
+                                    className="grid grid-cols-[1fr_auto_auto] items-center py-2 px-3 text-sm rounded hover:bg-slate-50 dark:hover:bg-slate-800 border-b last:border-b-0 gap-2"
+                                  >
+                                    <span className="text-[#7b2c7d] dark:text-[#e2b7b8] font-medium truncate">
+                                      {empaque?.nombre}
+                                    </span>
 
-                                  return (
-                                    <div
-                                      key={index}
-                                      className="grid grid-cols-[1fr_auto_auto] items-center py-2 px-3 text-sm rounded hover:bg-slate-50 dark:hover:bg-slate-800 border-b last:border-b-0 gap-2"
+                                    <span className="bg-[#7b2c7d]/10 dark:bg-[#e2b7b8]/10 px-3 py-1 rounded-full text-[#7b2c7d] dark:text-[#e2b7b8] font-medium text-center min-w-[2.5rem]">
+                                      {pack.quantity}
+                                    </span>
+
+                                    <Button
+                                      className="w-7 h-7 p-0"
+                                      variant="outline"
+                                      onClick={() => removeEmpaque(pack.id)}
                                     >
-                                      <span className="text-[#7b2c7d] dark:text-[#e2b7b8] font-medium truncate">
-                                        {empaque?.nombre}
-                                      </span>
-
-                                      <span className="bg-[#7b2c7d]/10 dark:bg-[#e2b7b8]/10 px-3 py-1 rounded-full text-[#7b2c7d] dark:text-[#e2b7b8] font-medium text-center min-w-[2.5rem]">
-                                        {pack.quantity}
-                                      </span>
-
-                                      <Button
-                                        className="w-7 h-7 p-0"
-                                        variant="outline"
-                                        onClick={() => removeEmpaque(pack.id)}
-                                      >
-                                        <Delete className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  );
-                                })}
+                                      <Delete className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                           </div>
                         ) : (
                           <div className="flex flex-col items-center justify-center h-full">
@@ -1032,7 +990,7 @@ export default function PuntoVenta() {
                             <ShoppingBag className="h-12 w-12 text-muted-foreground/30 mt-2" />
                           </div>
                         )}
-                        <div className="h-2"></div>
+                        <div className="h-2" />
                       </div>
                     </div>
                   </div>
@@ -1068,7 +1026,7 @@ export default function PuntoVenta() {
           </Card>
 
           {/* CLIENTE + MÉTODO DE PAGO */}
-          <Card className="shadow-md ">
+          <Card className="shadow-md">
             <CardContent className="p-2">
               <div className="space-y-2">
                 <div className="grid grid-cols-3 gap-2 items-center">
@@ -1215,6 +1173,21 @@ export default function PuntoVenta() {
                           />
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-3 gap-2 items-center">
+                        <Label htmlFor="imei" className="text-xs">
+                          IMEI
+                        </Label>
+                        <div className="col-span-2">
+                          <Input
+                            id="imei"
+                            value={imei}
+                            onChange={(e) => setImei(e.target.value)}
+                            placeholder="Opcional"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -1236,37 +1209,35 @@ export default function PuntoVenta() {
               en una venta
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="space-y-2">
                 <Label>Producto</Label>
-
                 <SelectM
                   placeholder="Seleccionar producto"
-                  options={productos.map((product) => ({
-                    value: product.id.toString(),
-                    label: `${product.nombre} (${product.codigoProducto})`,
+                  options={productos.map((p) => ({
+                    value: p.id.toString(),
+                    label: `${p.nombre} (${p.codigoProducto})`,
                   }))}
                   className="basic-select text-black"
                   classNamePrefix="select"
-                  onChange={(selectedOption) => {
-                    if (selectedOption) {
-                      setSelectedProductId(selectedOption.value);
-                    }
-                  }}
+                  onChange={(selectedOption) =>
+                    setSelectedProductId(
+                      selectedOption ? selectedOption.value : null
+                    )
+                  }
                   value={
                     selectedProductId
                       ? {
                           value: selectedProductId,
                           label: `${
                             productos.find(
-                              (product) =>
-                                product.id.toString() === selectedProductId
+                              (p) => p.id.toString() === selectedProductId
                             )?.nombre
                           } (${
                             productos.find(
-                              (product) =>
-                                product.id.toString() === selectedProductId
+                              (p) => p.id.toString() === selectedProductId
                             )?.codigoProducto
                           })`,
                         }
@@ -1274,6 +1245,7 @@ export default function PuntoVenta() {
                   }
                 />
               </div>
+
               <div className="space-y-2">
                 <Label>Precio Requerido</Label>
                 <Input
@@ -1310,6 +1282,7 @@ export default function PuntoVenta() {
                     ¿Continuar?
                   </DialogDescription>
                 </DialogHeader>
+
                 <div className="flex justify-end gap-2">
                   <Button
                     disabled={
