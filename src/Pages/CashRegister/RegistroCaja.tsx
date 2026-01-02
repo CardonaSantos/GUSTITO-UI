@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Banknote,
   CoinsIcon,
@@ -42,13 +42,11 @@ import localizedFormat from "dayjs/plugin/localizedFormat";
 import {
   useCloseCaja,
   useGetCajaAbierta,
-  useGetDepositosSucursal,
-  useGetEgresosSucursal,
-  useGetVentasCaja,
   useOpenCaja,
   RegistroCajaInicioPayload,
   RegistroCajaCierrePayload,
 } from "@/hooks/useHooks/useCaja";
+import DetalleMovimientosCaja from "./DetalleMovimientosCaja";
 
 dayjs.extend(utc);
 dayjs.extend(localizedFormat);
@@ -90,9 +88,15 @@ export default function RegistroCaja() {
   // saldo teórico según backend (lo que "debería" haber en caja)
   const saldoTeoricoFinal = resumen?.saldoTeoricoFinal ?? 0;
 
-  const { data: depositos = [] } = useGetDepositosSucursal(sucursalId);
-  const { data: egresos = [] } = useGetEgresosSucursal(sucursalId);
-  const { data: ventas = [] } = useGetVentasCaja(sucursalId, usuarioId);
+  const ventas = cajaInfo?.ventas ?? [];
+  const depositos = cajaInfo?.depositos ?? [];
+  const egresos = cajaInfo?.egresos ?? [];
+
+  console.log("depositos: ", depositos);
+
+  console.log("egresos: ", egresos);
+  console.log("ventas: ", ventas);
+  console.log("La caja info es: ", cajaInfo);
 
   // Mutations
   const openCajaMutation = useOpenCaja();
@@ -193,20 +197,6 @@ export default function RegistroCaja() {
           : (value as string),
     }));
   };
-
-  // Totales calculados
-  const totalDepositos = useMemo(
-    () => depositos.reduce((acc, d) => acc + d.monto, 0),
-    [depositos]
-  );
-  const totalEgresos = useMemo(
-    () => egresos.reduce((acc, e) => acc + e.monto, 0),
-    [egresos]
-  );
-  const totalVentas = useMemo(
-    () => ventas.reduce((acc, v) => acc + v.totalVenta, 0),
-    [ventas]
-  );
 
   // Submits
   const handleSubmitInicio = async (e?: React.FormEvent) => {
@@ -398,7 +388,7 @@ export default function RegistroCaja() {
                       {new Intl.NumberFormat("es-GT", {
                         style: "currency",
                         currency: "GTQ",
-                      }).format(resumen?.totalVentas ?? totalVentas)}
+                      }).format(resumen?.totalVentas ?? 0)}
                     </p>
                   </div>
 
@@ -411,7 +401,7 @@ export default function RegistroCaja() {
                       {new Intl.NumberFormat("es-GT", {
                         style: "currency",
                         currency: "GTQ",
-                      }).format(resumen?.totalEgresos ?? totalEgresos)}
+                      }).format(resumen?.totalEgresos ?? 0)}
                     </p>
                   </div>
 
@@ -424,7 +414,7 @@ export default function RegistroCaja() {
                       {new Intl.NumberFormat("es-GT", {
                         style: "currency",
                         currency: "GTQ",
-                      }).format(resumen?.totalDepositos ?? totalDepositos)}
+                      }).format(resumen?.totalDepositos ?? 0)}
                     </p>
                   </div>
                 </div>
@@ -614,6 +604,15 @@ export default function RegistroCaja() {
           </>
         )}
       </Card>
+
+      {isCashRegistOpen && (
+        <DetalleMovimientosCaja
+          ventas={ventas}
+          depositos={depositos}
+          egresos={egresos}
+          isLoading={isLoadingCaja}
+        />
+      )}
     </div>
   );
 }
