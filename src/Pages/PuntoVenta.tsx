@@ -130,6 +130,18 @@ interface CustomerOption {
 // =======================
 // Helpers de precio
 // =======================
+function isValidPrecio(p: Precios): boolean {
+  return typeof p.precio === "number" && p.precio > 0;
+}
+
+function normalizePrecios(precios: Precios[] = []): Precios[] {
+  return precios.filter(isValidPrecio).sort((a, b) => {
+    const ao = a.orden ?? Number.POSITIVE_INFINITY;
+    const bo = b.orden ?? Number.POSITIVE_INFINITY;
+    return ao - bo;
+  });
+}
+
 const sortPrecios = (precios: Precios[] = []) => {
   const sorted = [...precios].sort((a, b) => {
     // null/undefined => al final
@@ -141,12 +153,21 @@ const sortPrecios = (precios: Precios[] = []) => {
   return sorted;
 };
 
-const getBasePrice = (precios: Precios[] = []) => {
-  if (!precios.length) return { id: 0, precio: 0, sorted: [] as Precios[] };
-  const sorted = sortPrecios(precios);
-  const best = sorted[0];
-  return { id: best.id, precio: best.precio, sorted };
-};
+function getBasePrice(precios: Precios[]) {
+  const normalized = normalizePrecios(precios);
+
+  if (!normalized.length) {
+    return {
+      basePriceId: 0,
+      precios: [],
+    };
+  }
+
+  return {
+    basePriceId: normalized[0].id,
+    precios: normalized,
+  };
+}
 
 const clampInt = (value: number, min: number, max: number) => {
   if (Number.isNaN(value)) return min;
@@ -190,13 +211,13 @@ export default function PuntoVenta() {
   const [direccion, setDireccion] = useState("");
 
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null
+    null,
   );
   const [precioReques, setPrecioRequest] = useState<number | null>(null);
   const [openReques, setOpenRequest] = useState(false);
 
   const [selectedCustomerID, setSelectedCustomerID] = useState<Customer | null>(
-    null
+    null,
   );
 
   const [activeTab, setActiveTab] = useState("existing");
@@ -208,44 +229,50 @@ export default function PuntoVenta() {
 
   const handleClose = () => setOpenSection(false);
 
-  // =======================
   // FORMATO
-  // =======================
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-GT", {
       style: "currency",
       currency: "GTQ",
     }).format(amount);
 
-  // =======================
-  // CARRITO (precio por ID: fuente única de verdad)
-  // =======================
-  const getSelectedPriceValue = (item: CartItem) =>
-    item.precios.find((p) => p.id === item.selectedPriceId)?.precio ?? 0;
+  // CARRITO
+  const getSelectedPriceValue = (item: CartItem) => {
+    const price = item.precios.find((p) => p.id === item.selectedPriceId);
+
+    if (!price) {
+      console.error("Precio inconsistente detectado", {
+        productId: item.id,
+        selectedPriceId: item.selectedPriceId,
+        precios: item.precios,
+      });
+      return 0;
+    }
+
+    return price.precio;
+  };
 
   const getMaxStock = (product: Producto) =>
     product.stock?.reduce((total, s) => total + (s.cantidad ?? 0), 0) ?? 0;
 
   const addToCart = (product: Producto) => {
-    const existing = cart.find((item) => item.id === product.id);
-    const { id: basePriceId, sorted } = getBasePrice(product.precios);
-
+    const existing = cart.find((i) => i.id === product.id);
     if (existing) {
       setCart((prev) =>
-        prev.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
+        prev.map((i) =>
+          i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i,
+        ),
       );
       return;
     }
 
+    const { basePriceId, precios } = getBasePrice(product.precios);
+
     const newItem: CartItem = {
       ...product,
-      precios: sorted, // ordenados una vez y se quedan estables
-      quantity: 1,
+      precios, // 🔒 congelados
       selectedPriceId: basePriceId,
+      quantity: 1,
     };
 
     setCart((prev) => [...prev, newItem]);
@@ -262,27 +289,25 @@ export default function PuntoVenta() {
         const max = getMaxStock(item);
         const newQuantity = clampInt(newQuantityRaw, 1, Math.max(1, max));
         return { ...item, quantity: newQuantity };
-      })
+      }),
     );
   };
 
   const updateSelectedPriceId = (productId: number, newPriceId: number) => {
     setCart((prev) =>
       prev.map((item) =>
-        item.id === productId ? { ...item, selectedPriceId: newPriceId } : item
-      )
+        item.id === productId ? { ...item, selectedPriceId: newPriceId } : item,
+      ),
     );
   };
 
   const calculateTotal = () =>
     cart.reduce(
       (total, item) => total + getSelectedPriceValue(item) * item.quantity,
-      0
+      0,
     );
 
-  // =======================
   // BUSQUEDA
-  // =======================
   const filteredProducts = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return productos;
@@ -290,13 +315,11 @@ export default function PuntoVenta() {
     return productos.filter(
       (p) =>
         p.nombre.toLowerCase().includes(term) ||
-        p.codigoProducto.toLowerCase().includes(term)
+        p.codigoProducto.toLowerCase().includes(term),
     );
   }, [productos, searchTerm]);
 
-  // =======================
   // PRICE REQUEST
-  // =======================
   const handleMakeRequest = async () => {
     if (!selectedProductId) {
       toast.info("Debe seleccionar un producto primero");
@@ -316,7 +339,7 @@ export default function PuntoVenta() {
       });
 
       toast.success(
-        "Solicitud enviada, esperando respuesta del administrador..."
+        "Solicitud enviada, esperando respuesta del administrador...",
       );
       setPrecioRequest(null);
       setSelectedProductId(null);
@@ -327,9 +350,7 @@ export default function PuntoVenta() {
     }
   };
 
-  // =======================
   // CLIENTES (react-select)
-  // =======================
   const customerOptions = useMemo(
     () =>
       clients.map((customer) => ({
@@ -342,7 +363,7 @@ export default function PuntoVenta() {
             : ""
         }`,
       })),
-    [clients]
+    [clients],
   );
 
   const handleChange = (selectedOption: CustomerOption | null) => {
@@ -352,9 +373,7 @@ export default function PuntoVenta() {
     setSelectedCustomerID(selectedCustomer);
   };
 
-  // =======================
   // EMPAQUES
-  // =======================
   const updateEmpaqueQuantity = (id: number, quantity: number) => {
     setEmpaquesUsados((prev) => {
       const exists = prev.find((e) => e.id === id);
@@ -370,7 +389,7 @@ export default function PuntoVenta() {
 
   const totalEmpaquesSeleccionados = empaquesUsados.reduce(
     (total, acc) => total + acc.quantity,
-    0
+    0,
   );
   const totalProductos = cart.reduce((total, acc) => total + acc.quantity, 0);
 
@@ -381,17 +400,15 @@ export default function PuntoVenta() {
     return empaques.filter(
       (p) =>
         p.nombre.trim().toLowerCase().includes(term) ||
-        p.codigoProducto.trim().toLowerCase().includes(term)
+        p.codigoProducto.trim().toLowerCase().includes(term),
     );
   }, [filterEmpaques, empaques]);
 
-  // =======================
   // COMPLETAR VENTA
-  // =======================
   const handleCompleteSale = async () => {
     if (!userId || !rawSucursalId) {
       toast.error(
-        "No se puede registrar la venta: sucursal o usuario no válidos."
+        "No se puede registrar la venta: sucursal o usuario no válidos.",
       );
       return;
     }
@@ -438,7 +455,7 @@ export default function PuntoVenta() {
       !isCustomerInfoProvided
     ) {
       toast.warning(
-        "Para ventas mayores a 1000 es necesario ingresar o seleccionar un cliente"
+        "Para ventas mayores a 1000 es necesario ingresar o seleccionar un cliente",
       );
       return;
     }
@@ -471,6 +488,8 @@ export default function PuntoVenta() {
       toast.error("Ocurrió un error al completar la venta");
     }
   };
+
+  console.log("Los productos son: ", productos);
 
   // =======================
   // RENDER
@@ -620,7 +639,7 @@ export default function PuntoVenta() {
                               "bg-[#e2b7b8] hover:bg-[#d19fa0] text-[#7b2c7d]",
                               "dark:bg-[#7b2c7d] dark:hover:bg-[#9a3c9c] dark:text-[#f5d0d1]",
                               "disabled:bg-[#e2b7b8]/50 disabled:text-[#7b2c7d]/50 disabled:hover:bg-[#e2b7b8]/50",
-                              "dark:disabled:bg-[#7b2c7d]/50 dark:disabled:text-[#f5d0d1]/50 dark:disabled:hover:bg-[#7b2c7d]/50"
+                              "dark:disabled:bg-[#7b2c7d]/50 dark:disabled:text-[#f5d0d1]/50 dark:disabled:hover:bg-[#7b2c7d]/50",
                             )}
                             onClick={() => addToCart(product)}
                             disabled={maxStock === 0}
@@ -686,7 +705,7 @@ export default function PuntoVenta() {
                               onChange={(e) =>
                                 updateQuantity(
                                   item.id,
-                                  Number.parseInt(e.target.value)
+                                  Number.parseInt(e.target.value),
                                 )
                               }
                               min={1}
@@ -701,14 +720,14 @@ export default function PuntoVenta() {
                               onValueChange={(newPriceId) =>
                                 updateSelectedPriceId(
                                   item.id,
-                                  Number(newPriceId)
+                                  Number(newPriceId),
                                 )
                               }
                             >
                               <SelectTrigger className="h-7 text-xs">
                                 <SelectValue
                                   placeholder={formatCurrency(
-                                    selectedPriceValue
+                                    selectedPriceValue,
                                   )}
                                 />
                               </SelectTrigger>
@@ -717,17 +736,14 @@ export default function PuntoVenta() {
                                   <SelectLabel className="text-xs">
                                     Precios disponibles
                                   </SelectLabel>
-                                  {item.precios
-                                    .filter((p) => p.precio > 0)
-                                    .map((p) => (
-                                      <SelectItem
-                                        key={p.id}
-                                        value={p.id.toString()}
-                                        className="text-xs"
-                                      >
-                                        {formatCurrency(p.precio)}
-                                      </SelectItem>
-                                    ))}
+                                  {item.precios.map((p) => (
+                                    <SelectItem
+                                      key={p.id}
+                                      value={p.id.toString()}
+                                    >
+                                      {formatCurrency(p.precio)}
+                                    </SelectItem>
+                                  ))}
                                 </SelectGroup>
                               </SelectContent>
                             </Select>
@@ -870,7 +886,7 @@ export default function PuntoVenta() {
                                 number,
                                 { nombre: string; total: number }
                               >,
-                              curr: any
+                              curr: any,
                             ) => {
                               const id = curr.sucursal.id;
                               const nombre = curr.sucursal.nombre;
@@ -880,17 +896,17 @@ export default function PuntoVenta() {
                               else acc[id].total += cantidad;
                               return acc;
                             },
-                            {}
+                            {},
                           );
 
                           const maxPackage = empaque.stock
                             .filter(
-                              (pack: any) => pack.sucursal.id === sucursalId
+                              (pack: any) => pack.sucursal.id === sucursalId,
                             )
                             .reduce(
                               (total: number, acc: any) =>
                                 total + (acc.cantidad ?? 0),
-                              0
+                              0,
                             );
 
                           return (
@@ -915,7 +931,7 @@ export default function PuntoVenta() {
                                       >
                                         {s.nombre}: {s.total}
                                       </p>
-                                    )
+                                    ),
                                   )}
                                 </div>
                               </div>
@@ -932,7 +948,7 @@ export default function PuntoVenta() {
                                   onChange={(e) =>
                                     updateEmpaqueQuantity(
                                       empaque.id,
-                                      Number(e.target.value)
+                                      Number(e.target.value),
                                     )
                                   }
                                   className="w-16 h-8 text-center flex-shrink-0"
@@ -956,7 +972,7 @@ export default function PuntoVenta() {
                               .filter((pack) => pack.quantity > 0)
                               .map((pack, index) => {
                                 const empaque = empaques.find(
-                                  (e: any) => e.id === pack.id
+                                  (e: any) => e.id === pack.id,
                                 );
                                 return (
                                   <div
@@ -1224,7 +1240,7 @@ export default function PuntoVenta() {
                   classNamePrefix="select"
                   onChange={(selectedOption) =>
                     setSelectedProductId(
-                      selectedOption ? selectedOption.value : null
+                      selectedOption ? selectedOption.value : null,
                     )
                   }
                   value={
@@ -1233,11 +1249,11 @@ export default function PuntoVenta() {
                           value: selectedProductId,
                           label: `${
                             productos.find(
-                              (p) => p.id.toString() === selectedProductId
+                              (p) => p.id.toString() === selectedProductId,
                             )?.nombre
                           } (${
                             productos.find(
-                              (p) => p.id.toString() === selectedProductId
+                              (p) => p.id.toString() === selectedProductId,
                             )?.codigoProducto
                           })`,
                         }
@@ -1252,7 +1268,7 @@ export default function PuntoVenta() {
                   value={precioReques ?? ""}
                   onChange={(e) =>
                     setPrecioRequest(
-                      e.target.value ? Number(e.target.value) : null
+                      e.target.value ? Number(e.target.value) : null,
                     )
                   }
                   placeholder="100"

@@ -31,7 +31,7 @@ export default function ProductEditForm() {
   const usuarioId = useStore((state) => state.userId) ?? 0;
 
   const { data: product, isLoading: isLoadingProduct } = useGetProduct(
-    Number.isNaN(productId) ? undefined : productId
+    Number.isNaN(productId) ? undefined : productId,
   );
   const { data: categories = [], isLoading: isLoadingCategories } =
     useGetCategories();
@@ -56,7 +56,7 @@ export default function ProductEditForm() {
   }, [product]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => (prev ? { ...prev, [name]: value } : prev));
@@ -198,7 +198,7 @@ export default function ProductEditForm() {
 
     if (invalidOrder) {
       toast.error(
-        "Todos los órdenes de los precios deben ser números enteros mayores o iguales a 1."
+        "Todos los órdenes de los precios deben ser números enteros mayores o iguales a 1.",
       );
       return;
     }
@@ -245,6 +245,7 @@ export default function ProductEditForm() {
 
   // Precios visibles (no eliminados)
   const visiblePrices = formData.precios.filter((p) => !p.eliminar);
+  console.log("El producto para edicion es:", product);
 
   return (
     <form
