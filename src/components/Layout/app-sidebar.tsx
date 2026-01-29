@@ -140,7 +140,7 @@ const menuItemsAdmin = [
       },
       {
         icon: CoinsIcon,
-        label: "Saldo y Egresos",
+        label: "Historial Movimientos",
         href: "/historial/depositos-egresos",
       },
     ],

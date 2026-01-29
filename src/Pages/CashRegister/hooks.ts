@@ -1,8 +1,9 @@
 // Crear depósito
 
-import { useApiMutation } from "@/hooks/hooks/useQueryHooks";
+import { useApiMutation, useApiQuery } from "@/hooks/hooks/useQueryHooks";
 import { cajaKeys, Deposito, Egreso } from "@/hooks/useHooks/useCaja";
 import { useQueryClient } from "@tanstack/react-query";
+import { depositosQkeys, egresosQkeys } from "./Qk";
 
 // Payload para crear depósito
 export interface DepositoCreatePayload {
@@ -76,4 +77,91 @@ export function useCreateEgreso() {
       },
     }
   );
+}
+
+export type Deposit = {
+  id: number;
+  banco: string;
+  descripcion: string;
+  fechaDeposito: string;
+  monto: number;
+  numeroBoleta: string;
+  usadoParaCierre: boolean;
+  usuario: User;
+};
+
+export type User = {
+  id: number;
+  nombre: string;
+  rol: string;
+};
+
+export type Expense = {
+  id: number;
+  descripcion: string;
+  fechaEgreso: string;
+  monto: number;
+  usuario: User;
+};
+
+export function useGetDepositos(id: number) {
+  return useApiQuery<Array<Deposit>>(
+    depositosQkeys.all,
+    `sucursal-saldo/get-sucursal-deposits/${id}`,
+    undefined,
+    {
+      staleTime: 0,
+      refetchOnWindowFocus: "always",
+      refetchOnMount: "always",
+      refetchOnReconnect: "always",
+      retry: 1,
+    }
+  );
+}
+
+export function useGetEgresos(id: number) {
+  return useApiQuery<Array<Expense>>(
+    egresosQkeys.all,
+    `sucursal-saldo/get-sucursal-egresos/${id}`,
+    undefined,
+    {
+      staleTime: 0,
+      refetchOnWindowFocus: "always",
+      refetchOnMount: "always",
+      refetchOnReconnect: "always",
+      retry: 1,
+    }
+  );
+}
+
+export function useDeleteDeposito(id: number) {
+  const query = useQueryClient();
+
+  return useApiMutation("delete", `caja/delete-deposito/${id}`, undefined, {
+    onSuccess: () => {
+      query.invalidateQueries({
+        queryKey: depositosQkeys.all,
+      });
+    },
+  });
+}
+
+export function useDeleteEgreso(id: number) {
+  const query = useQueryClient();
+  return useApiMutation("delete", `caja/delete-egreso/${id}`, undefined, {
+    onSuccess: () => {
+      query.invalidateQueries({
+        queryKey: egresosQkeys.all,
+      });
+    },
+  });
+}
+
+// --- EDIT HOOKS ---
+export function useUpdateDeposito() {
+  return useApiMutation("patch", `caja/update-deposito`);
+}
+
+export function useUpdateEgreso() {
+  return useApiMutation("patch", `caja/update-egreso`);
 }

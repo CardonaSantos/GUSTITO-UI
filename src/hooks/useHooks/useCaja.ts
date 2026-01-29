@@ -12,9 +12,8 @@ export interface CajaResumen {
   totalVentas: number;
   totalEgresos: number;
   totalDepositos: number;
-  totalDepositosCierre: number;
   saldoTeoricoFinal: number;
-  diferencia: number; // (saldoFinal DB - saldoTeoricoFinal) en el backend
+  diferencia: number;
 }
 
 export interface Usuario {
@@ -53,6 +52,10 @@ export interface CajaInfo {
   tieneCajaAbierta: boolean;
   cajaAbierta: RegistroAbierto | null;
   ultimaCajaCerrada: UltimaCajaCerrada | null;
+  // Agrega los nuevos campos que ahora envías desde el back:
+  ventas: VentaWithOutCashRegist[];
+  depositos: Deposito[];
+  egresos: Egreso[];
 }
 
 export interface Deposito {
