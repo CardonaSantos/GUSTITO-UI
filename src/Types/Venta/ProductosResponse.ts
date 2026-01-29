@@ -5,16 +5,27 @@ type Stock = {
   fechaVencimiento: string; // En formato ISO
 };
 
+enum TipoPrecio {
+  CREADO_POR_SOLICITUD = "CREADO_POR_SOLICITUD",
+  ESTANDAR = "ESTANDAR",
+}
+
+enum EstadoPrecio {
+  APROBADO = "APROBADO",
+  PENDIENTE = "PENDIENTE",
+  RECHAZADO = "RECHAZADO",
+}
+
 export interface Precios {
   id: number;
   precio: number;
   // Propiedades de Control/Metadata
   creadoPorId: number;
-  estado: "APROBADO" | "PENDIENTE" | "RECHAZADO" | string; // Usamos uniones literales si conoces los estados
+  estado: EstadoPrecio;
   fechaCreacion: string; // Se recomienda usar 'string' para fechas ISO-8601 en interfaces
   orden: number;
   productoId: number;
-  tipo: "ESTANDAR" | "ESPECIAL" | string; // Usamos uniones literales si conoces los tipos
+  tipo: TipoPrecio;
   usado: boolean;
 }
 

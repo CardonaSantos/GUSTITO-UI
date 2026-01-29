@@ -96,7 +96,20 @@ type Precios = {
   id: number;
   precio: number;
   orden?: number | null;
+  estado: EstadoPrecio;
+  tipo: TipoPrecio;
 };
+
+enum TipoPrecio {
+  CREADO_POR_SOLICITUD = "CREADO_POR_SOLICITUD",
+  ESTANDAR = "ESTANDAR",
+}
+
+enum EstadoPrecio {
+  APROBADO = "APROBADO",
+  PENDIENTE = "PENDIENTE",
+  RECHAZADO = "RECHAZADO",
+}
 
 type Producto = {
   id: number;
@@ -488,6 +501,8 @@ export default function PuntoVenta() {
       toast.error("Ocurrió un error al completar la venta");
     }
   };
+  const getSelectedPrecio = (item: CartItem) =>
+    item.precios.find((p) => p.id === item.selectedPriceId);
 
   console.log("Los productos son: ", productos);
 
@@ -691,6 +706,7 @@ export default function PuntoVenta() {
                     {cart.map((item) => {
                       const selectedPriceValue = getSelectedPriceValue(item);
                       const max = getMaxStock(item);
+                      const selectedPrecio = getSelectedPrecio(item);
 
                       return (
                         <TableRow key={item.id} className="hover:bg-muted/5">
@@ -724,24 +740,54 @@ export default function PuntoVenta() {
                                 )
                               }
                             >
-                              <SelectTrigger className="h-7 text-xs">
+                              <SelectTrigger
+                                className={cn(
+                                  "h-7 text-xs font-semibold border-2 transition-colors",
+                                  selectedPrecio?.tipo ===
+                                    "CREADO_POR_SOLICITUD"
+                                    ? "border-amber-500 bg-amber-50 text-amber-700"
+                                    : "border-[#7b2c7d] bg-white text-[#7b2c7d]",
+                                )}
+                              >
                                 <SelectValue
-                                  placeholder={formatCurrency(
-                                    selectedPriceValue,
-                                  )}
+                                  placeholder={
+                                    selectedPrecio
+                                      ? `${formatCurrency(selectedPrecio.precio)} · ${
+                                          selectedPrecio.tipo ===
+                                          "CREADO_POR_SOLICITUD"
+                                            ? "Especial"
+                                            : "Estándar"
+                                        }`
+                                      : "Seleccionar precio"
+                                  }
                                 />
                               </SelectTrigger>
+
                               <SelectContent>
                                 <SelectGroup>
                                   <SelectLabel className="text-xs">
                                     Precios disponibles
                                   </SelectLabel>
+
                                   {item.precios.map((p) => (
                                     <SelectItem
                                       key={p.id}
                                       value={p.id.toString()}
+                                      className={cn(
+                                        "flex justify-between",
+                                        // estilo base
+                                        "data-[state=checked]:bg-[#7b2c7d]/10 data-[state=checked]:text-[#7b2c7d]",
+                                        // refuerzo si es precio especial
+                                        p.tipo === "CREADO_POR_SOLICITUD" &&
+                                          "data-[state=checked]:bg-amber-100 data-[state=checked]:text-amber-700",
+                                      )}
                                     >
-                                      {formatCurrency(p.precio)}
+                                      <span>{formatCurrency(p.precio)}</span>
+                                      <span className="ml-2 text-xs opacity-70">
+                                        {p.tipo === "CREADO_POR_SOLICITUD"
+                                          ? "Especial"
+                                          : "Estándar"}
+                                      </span>
                                     </SelectItem>
                                   ))}
                                 </SelectGroup>
