@@ -23,6 +23,7 @@ import {
   Goal,
   Target,
   ChartBarBig,
+  Layers,
 } from "lucide-react";
 
 import {
@@ -176,6 +177,9 @@ const menuItemsAdmin = [
   },
 
   { icon: SendToBack, label: "Transferencia", href: "/transferencia" },
+
+  { icon: Layers, label: "Auditoria", href: "/auditoria" },
+
   { icon: Building, label: "Sucursal", href: "/sucursal" },
   { icon: Bolt, label: "Config", href: "/config/user" },
 ];

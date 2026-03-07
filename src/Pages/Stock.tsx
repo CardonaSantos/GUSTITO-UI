@@ -154,7 +154,7 @@ const useProductosInventario = () =>
     queryKey: inventarioKeys.productos(),
     queryFn: async () => {
       const { data } = await axios.get<ProductsInventary[]>(
-        `${API_URL}/products/products/for-inventary`
+        `${API_URL}/products/products/for-inventary`,
       );
       return data;
     },
@@ -342,7 +342,7 @@ function ProductStockSection({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [productToShow, setProductToShow] = useState<ProductoSelect | null>(
-    null
+    null,
   );
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<StockEntry | null>(null);
@@ -424,9 +424,9 @@ function ProductStockSection({
     () =>
       stockEntries.reduce(
         (total, producto) => total + producto.cantidad * producto.precioCosto,
-        0
+        0,
       ),
-    [stockEntries]
+    [stockEntries],
   );
 
   const handleConfirmSubmit = async () => {
@@ -454,11 +454,16 @@ function ProductStockSection({
         error: "Error al registrar los stocks.",
       });
 
+      // ✅ éxito
       setStockEntries([]);
       setSelectedProviderId("");
       setIsConfirmDialogOpen(false);
     } catch {
-      // el toast.promise ya muestra el error
+      // 🔴 AÑADIR ESTO: cerrar el dialog para forzar que el usuario
+      // verifique manualmente antes de reintentar
+      setIsConfirmDialogOpen(false);
+      // NO limpiar stockEntries aquí, pero sí cerrar el dialog
+      // para que el reintento sea un acto consciente
     }
   };
 
@@ -476,7 +481,7 @@ function ProductStockSection({
 
     if (editingEntry.cantidad <= 0 || editingEntry.precioCosto <= 0) {
       toast.warning(
-        "La cantidad y el precio deben ser números válidos mayores a cero."
+        "La cantidad y el precio deben ser números válidos mayores a cero.",
       );
       return;
     }
@@ -488,8 +493,8 @@ function ProductStockSection({
 
     setStockEntries((prev) =>
       prev.map((entry) =>
-        entry.productoId === updated.productoId ? updated : entry
-      )
+        entry.productoId === updated.productoId ? updated : entry,
+      ),
     );
 
     setIsEditDialogOpen(false);
@@ -521,7 +526,7 @@ function ProductStockSection({
                   setSelectedProductId(id);
 
                   const selectedProduct = productsInventary.find(
-                    (product) => product.id.toString() === id
+                    (product) => product.id.toString() === id,
                   );
 
                   if (selectedProduct) {
@@ -549,7 +554,8 @@ function ProductStockSection({
                 selectedProductId
                   ? productsInventary
                       .filter(
-                        (product) => product.id.toString() === selectedProductId
+                        (product) =>
+                          product.id.toString() === selectedProductId,
                       )
                       .map((product) => ({
                         value: product.id.toString(),
@@ -705,7 +711,7 @@ function ProductStockSection({
                           }
                           acc[sucursalName].cantidad += stock.cantidad;
                           return acc;
-                        }, {})
+                        }, {}),
                       ).map(([sucursalName, { cantidad }]) => (
                         <div
                           key={sucursalName}
@@ -744,7 +750,10 @@ function ProductStockSection({
 
           <Dialog
             open={isConfirmDialogOpen}
-            onOpenChange={setIsConfirmDialogOpen}
+            onOpenChange={(open) => {
+              if (isSubmitting) return;
+              setIsConfirmDialogOpen(open);
+            }}
           >
             <DialogTrigger asChild>
               <Button
@@ -786,7 +795,7 @@ function ProductStockSection({
                             <TableCell>
                               {
                                 productsInventary.find(
-                                  (p) => p.id === entry.productoId
+                                  (p) => p.id === entry.productoId,
                                 )?.nombre
                               }
                             </TableCell>
@@ -867,7 +876,7 @@ function ProductStockSection({
                       <TableCell>
                         {
                           productsInventary.find(
-                            (p) => p.id === entry.productoId
+                            (p) => p.id === entry.productoId,
                           )?.nombre
                         }
                       </TableCell>
@@ -1020,9 +1029,9 @@ function EmpaqueStockSection({
     () =>
       stockEntriesEmpaques.reduce(
         (total, producto) => total + producto.cantidad * producto.precioCosto,
-        0
+        0,
       ),
-    [stockEntriesEmpaques]
+    [stockEntriesEmpaques],
   );
 
   const handleAddEmpaqueEntry = () => {
@@ -1030,7 +1039,7 @@ function EmpaqueStockSection({
 
     if (!selectedEmpaqueId || !cantidad || isNaN(cantidadNum)) {
       toast.warning(
-        "Debe seleccionar un empaque y asignar una cantidad válida."
+        "Debe seleccionar un empaque y asignar una cantidad válida.",
       );
       return;
     }
@@ -1057,7 +1066,7 @@ function EmpaqueStockSection({
 
     if (
       stockEntriesEmpaques.some(
-        (entry) => entry.empaqueId === newEntry.empaqueId
+        (entry) => entry.empaqueId === newEntry.empaqueId,
       )
     ) {
       toast.warning("Este empaque ya está en la lista.");
@@ -1143,7 +1152,7 @@ function EmpaqueStockSection({
       precioCosto <= 0
     ) {
       toast.warning(
-        "La cantidad y el precio deben ser números válidos mayores a cero."
+        "La cantidad y el precio deben ser números válidos mayores a cero.",
       );
       return;
     }
@@ -1154,7 +1163,7 @@ function EmpaqueStockSection({
     };
 
     const updatedEntries = stockEntriesEmpaques.map((entry) =>
-      entry.empaqueId === updated.empaqueId ? updated : entry
+      entry.empaqueId === updated.empaqueId ? updated : entry,
     );
 
     setStockEntriesEmpaques(updatedEntries);
@@ -1187,7 +1196,7 @@ function EmpaqueStockSection({
                 if (selectedOption) {
                   setSelectedEmpaqueId(selectedOption.value);
                   const selected = empaquesInventario.find(
-                    (e) => e.id.toString() === selectedOption.value
+                    (e) => e.id.toString() === selectedOption.value,
                   );
                   if (selected) {
                     setPrecioCosto(selected.precioCosto ?? 0);
@@ -1270,7 +1279,7 @@ function EmpaqueStockSection({
               type="text"
               readOnly
               value={formatCurrency(
-                calculateTotalCost(Number(cantidad || "0"), precioCosto)
+                calculateTotalCost(Number(cantidad || "0"), precioCosto),
               )}
             />
           </div>
@@ -1335,7 +1344,7 @@ function EmpaqueStockSection({
                       <TableBody>
                         {stockEntriesEmpaques.map((entry, index) => {
                           const empaque = empaquesInventario.find(
-                            (e) => e.id === entry.empaqueId
+                            (e) => e.id === entry.empaqueId,
                           );
 
                           return (
@@ -1415,7 +1424,7 @@ function EmpaqueStockSection({
                       <TableCell>
                         {
                           empaquesInventario.find(
-                            (e) => e.id === entry.empaqueId
+                            (e) => e.id === entry.empaqueId,
                           )?.nombre
                         }
                       </TableCell>
