@@ -70,7 +70,6 @@ export function useCreateVenta() {
       const response = await axios.post(`${API_URL}/venta`, venta);
       return response.data as Venta;
     },
-    retry: 1,
     onSuccess: (_data, variables) => {
       // Refetch catálogo de productos de la sucursal
       if (variables.sucursalId) {
@@ -93,7 +92,6 @@ export function useCreatePriceRequest() {
     mutationFn: async (payload) => {
       await axios.post(`${API_URL}/price-request`, payload);
     },
-    retry: 1,
   });
 }
 
@@ -105,7 +103,6 @@ export function useDeleteVenta() {
     mutationFn: async (payload) => {
       await axios.post(`${API_URL}/sale-deleted`, payload);
     },
-    retry: 1,
     onSuccess: (_data, variables) => {
       // Refetch historial de la sucursal
       queryClient.invalidateQueries({

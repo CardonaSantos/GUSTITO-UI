@@ -66,6 +66,7 @@ import { useEffect } from "react";
 import InventarioEmpaques from "./Pages/InventarioEmpaques/InventarioEmpaques";
 import StockEditEmpaque from "./Pages/InventarioEmpaques/StockEditEmpaque";
 import AnalitycsMainPage from "./Pages/Analytics/page";
+import MovimientosStockPage from "./Pages/auditoria/movimientos";
 // import { RedirectToDashboard } from "./components/Auth/RedirectToDashboard";
 
 function App() {
@@ -184,6 +185,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Stock />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/auditoria"
+              element={
+                <ProtectedRoute>
+                  <MovimientosStockPage />
                 </ProtectedRoute>
               }
             />
