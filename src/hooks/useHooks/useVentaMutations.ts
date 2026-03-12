@@ -1,8 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 import { VentaQkeys } from "../Qkeys/ventaQkeys";
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { useApiMutation } from "../hooks/useQueryHooks";
 
 // Misma interfaz que ya usas en la página
 export interface Venta {
@@ -65,49 +63,47 @@ export interface DeleteVentaPayload {
 export function useCreateVenta() {
   const queryClient = useQueryClient();
 
-  return useMutation<Venta, unknown, CreateVentaPayload>({
-    mutationFn: async (venta) => {
-      const response = await axios.post(`${API_URL}/venta`, venta);
-      return response.data as Venta;
-    },
-    onSuccess: (_data, variables) => {
-      // Refetch catálogo de productos de la sucursal
-      if (variables.sucursalId) {
-        queryClient.invalidateQueries({
-          queryKey: VentaQkeys.productosBySucursal(variables.sucursalId),
-        });
-      }
+  return useApiMutation<Venta, CreateVentaPayload, Error>(
+    "post",
+    "venta",
+    undefined,
+    {
+      onSuccess: (_data, variables) => {
+        if (variables.sucursalId) {
+          queryClient.invalidateQueries({
+            queryKey: VentaQkeys.productosBySucursal(variables.sucursalId),
+          });
+        }
 
-      // Refetch empaques
-      queryClient.invalidateQueries({
-        queryKey: VentaQkeys.empaques,
-      });
+        queryClient.invalidateQueries({
+          queryKey: VentaQkeys.empaques,
+        });
+      },
     },
-  });
+  );
 }
 
 // ---------------- SOLICITAR PRECIO ESPECIAL ----------------
 export function useCreatePriceRequest() {
-  return useMutation<void, unknown, CreatePriceRequestPayload>({
-    mutationFn: async (payload) => {
-      await axios.post(`${API_URL}/price-request`, payload);
-    },
-  });
+  return useApiMutation<void, CreatePriceRequestPayload, Error>(
+    "post",
+    "price-request",
+  );
 }
 
-// 🔹 Mutation para eliminar venta
 export function useDeleteVenta() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, unknown, DeleteVentaPayload>({
-    mutationFn: async (payload) => {
-      await axios.post(`${API_URL}/sale-deleted`, payload);
+  return useApiMutation<void, DeleteVentaPayload, Error>(
+    "post",
+    "sale-deleted",
+    undefined,
+    {
+      onSuccess: (_data, variables) => {
+        queryClient.invalidateQueries({
+          queryKey: VentaQkeys.sucursalSalesHistory(variables.sucursalId),
+        });
+      },
     },
-    onSuccess: (_data, variables) => {
-      // Refetch historial de la sucursal
-      queryClient.invalidateQueries({
-        queryKey: VentaQkeys.sucursalSalesHistory(variables.sucursalId),
-      });
-    },
-  });
+  );
 }

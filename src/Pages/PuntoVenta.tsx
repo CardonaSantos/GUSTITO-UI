@@ -444,7 +444,7 @@ export default function PuntoVenta() {
       productos: cart.map((prod) => ({
         productoId: prod.id,
         cantidad: prod.quantity,
-        selectedPriceId: prod.selectedPriceId, // ✅ ID real, sin “adivinar”
+        selectedPriceId: prod.selectedPriceId,
       })),
       monto: calculateTotal(),
       empaques: empaquesUsados.map((pack) => ({
@@ -473,32 +473,31 @@ export default function PuntoVenta() {
       return;
     }
 
-    try {
-      const ventaCreada = await toast.promise(createVenta(saleData), {
-        loading: "Registrando venta...",
-        success: (data) => {
-          setIsDialogOpen(false);
-          setCart([]);
-          setImei("");
-          setVentaResponse(data);
-          setSelectedCustomerID(null);
-          setNombre("");
-          setTelefono("");
-          setDireccion("");
-          setDpi("");
-          setEmpaquesUsados([]);
-          setOpenEmpaques(false);
+    const toastId = toast.loading("Registrando venta...");
 
-          setTimeout(() => setOpenSection(true), 1000);
-          return "Venta completada con éxito";
-        },
-        error: (error) => getApiErrorMessageAxios(error),
-      });
+    try {
+      const ventaCreada = await createVenta(saleData);
+
+      setVentaResponse(ventaCreada);
+      setCart([]);
+      setImei("");
+      setSelectedCustomerID(null);
+      setNombre("");
+      setTelefono("");
+      setDireccion("");
+      setDpi("");
+      setEmpaquesUsados([]);
+      setOpenEmpaques(false);
+      setIsDialogOpen(false);
+
+      toast.success("Venta completada con éxito", { id: toastId });
+
+      setTimeout(() => setOpenSection(true), 300);
 
       console.log("Venta creada:", ventaCreada);
     } catch (error) {
-      console.log(error);
-      toast.error("Ocurrió un error al completar la venta");
+      toast.error(getApiErrorMessageAxios(error), { id: toastId });
+      console.error(error);
     }
   };
   const getSelectedPrecio = (item: CartItem) =>
@@ -826,7 +825,13 @@ export default function PuntoVenta() {
                 </div>
               </div>
 
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog
+                open={isDialogOpen}
+                onOpenChange={(open) => {
+                  if (isCreatingVenta) return;
+                  setIsDialogOpen(open);
+                }}
+              >
                 <Button
                   onClick={() => setOpenEmpaques(true)}
                   disabled={cart.length <= 0}
