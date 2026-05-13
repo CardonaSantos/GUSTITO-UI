@@ -473,31 +473,40 @@ export default function PuntoVenta() {
       return;
     }
 
-    const toastId = toast.loading("Registrando venta...");
-
     try {
-      const ventaCreada = await createVenta(saleData);
+      await toast.promise(createVenta(saleData), {
+        loading: "Registrando venta...",
 
-      setVentaResponse(ventaCreada);
-      setCart([]);
-      setImei("");
-      setSelectedCustomerID(null);
-      setNombre("");
-      setTelefono("");
-      setDireccion("");
-      setDpi("");
-      setEmpaquesUsados([]);
-      setOpenEmpaques(false);
-      setIsDialogOpen(false);
+        success: (ventaCreada) => {
+          // 👉 lógica intacta
+          setVentaResponse(ventaCreada);
+          setCart([]);
+          setImei("");
+          setSelectedCustomerID(null);
+          setNombre("");
+          setTelefono("");
+          setDireccion("");
+          setDpi("");
+          setEmpaquesUsados([]);
+          setOpenEmpaques(false);
+          setIsDialogOpen(false);
 
-      toast.success("Venta completada con éxito", { id: toastId });
+          setTimeout(() => setOpenSection(true), 300);
 
-      setTimeout(() => setOpenSection(true), 300);
+          console.log("Venta creada:", ventaCreada);
 
-      console.log("Venta creada:", ventaCreada);
+          return "Venta registrada correctamente";
+        },
+
+        error: (error) => {
+          console.error("Error al crear venta:", error);
+          console.log("Payload enviado:", saleData);
+
+          return getApiErrorMessageAxios(error);
+        },
+      });
     } catch (error) {
-      toast.error(getApiErrorMessageAxios(error), { id: toastId });
-      console.error(error);
+      console.error("Error inesperado:", error);
     }
   };
   const getSelectedPrecio = (item: CartItem) =>
