@@ -169,10 +169,10 @@ export function useGetCajaAbierta(sucursalId: number, usuarioId: number) {
         sucursalId,
         userId: usuarioId,
       },
-    }, // 👈 query string ?sucursalId=&userId=
+    },
     {
       enabled: !!sucursalId && !!usuarioId,
-    }
+    },
   );
 }
 
@@ -188,7 +188,7 @@ export function useGetDepositosSucursal(sucursalId?: number | null) {
       staleTime: 1000 * 30,
       gcTime: 1000 * 60 * 5,
       refetchOnWindowFocus: false,
-    }
+    },
   );
 }
 
@@ -204,13 +204,13 @@ export function useGetEgresosSucursal(sucursalId?: number | null) {
       staleTime: 1000 * 30,
       gcTime: 1000 * 60 * 5,
       refetchOnWindowFocus: false,
-    }
+    },
   );
 }
 
 export function useGetVentasCaja(
   sucursalId?: number | null,
-  usuarioId?: number | null
+  usuarioId?: number | null,
 ) {
   const enabled = !!sucursalId && !!usuarioId;
 
@@ -223,7 +223,7 @@ export function useGetVentasCaja(
       staleTime: 1000 * 30,
       gcTime: 1000 * 60 * 5,
       refetchOnWindowFocus: false,
-    }
+    },
   );
 }
 
@@ -243,7 +243,7 @@ export function useOpenCaja() {
           queryKey: cajaKeys.open(variables.sucursalId, variables.usuarioId),
         });
       },
-    }
+    },
   );
 }
 
@@ -271,6 +271,6 @@ export function useCloseCaja() {
           queryKey: cajaKeys.ventas(sucursalId, usuarioId),
         });
       },
-    }
+    },
   );
 }
